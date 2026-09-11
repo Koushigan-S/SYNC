@@ -1,0 +1,236 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useSync } from "@/context/SyncContext";
+import {
+  Bell,
+  Code2,
+  GitCommit,
+  Users,
+  ChevronDown,
+  Sparkles,
+  Plus,
+  Compass,
+} from "lucide-react";
+
+interface TopNavProps {
+  onOpenNotifications: () => void;
+  onOpenNewTask: () => void;
+  onOpenOnboarding: () => void;
+  onOpenGroupSettings: () => void;
+}
+
+export function TopNav({
+  onOpenNotifications,
+  onOpenNewTask,
+  onOpenOnboarding,
+  onOpenGroupSettings,
+}: TopNavProps) {
+  const pathname = usePathname();
+  const {
+    currentUser,
+    currentGroup,
+    allUsers,
+    switchUser,
+    simulateCodingActivity,
+    notifications,
+  } = useSync();
+
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const navLinks = [
+    { label: "Dashboard", href: "/" },
+    { label: "Schedule", href: "/schedule" },
+    { label: "Leaderboard", href: "/leaderboard" },
+    { label: "Friends", href: "/friends" },
+    { label: "Analytics", href: "/analytics" },
+    { label: "Challenges", href: "/challenges" },
+  ];
+
+  return (
+    <header className="sticky top-0 z-40 w-full glass-header">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-6">
+        {/* Left: Brand & Squad Pill */}
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center font-bold text-black text-xs tracking-tight transition-transform group-hover:scale-105 shadow-sm">
+              S
+            </div>
+            <span className="font-semibold tracking-wider text-sm text-white">
+              SYNC
+            </span>
+          </Link>
+
+          <button
+            onClick={onOpenGroupSettings}
+            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-zinc-300 transition-colors"
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span className="font-medium text-white">{currentGroup.name}</span>
+          </button>
+        </div>
+
+        {/* Center: Simplified Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-1">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium tracking-tight transition-colors ${
+                  isActive
+                    ? "text-white bg-white/10"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Right: Actions & Profile */}
+        <div className="flex items-center gap-2">
+          {/* Quick Schedule Button */}
+          <button
+            onClick={onOpenNewTask}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-all shadow-sm"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">New Task</span>
+          </button>
+
+          {/* Notifications Bell */}
+          <button
+            onClick={onOpenNotifications}
+            className="relative p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+            aria-label="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-white" />
+            )}
+          </button>
+
+          {/* User Switcher / Profile Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+              className="flex items-center gap-1.5 p-1 rounded-full hover:bg-white/5 transition-colors"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={currentUser.photoURL}
+                alt={currentUser.displayName}
+                className="w-7 h-7 rounded-full object-cover border border-white/20"
+              />
+              <ChevronDown className="w-3 h-3 text-zinc-400" />
+            </button>
+
+            {isUserMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-[#161618] border border-white/10 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95">
+                {/* User Header */}
+                <div className="px-3 py-2 border-b border-white/5 mb-1.5">
+                  <div className="text-xs font-semibold text-white">
+                    {currentUser.displayName}
+                  </div>
+                  <div className="text-[11px] text-zinc-400 flex items-center justify-between mt-0.5">
+                    <span>@{currentUser.username}</span>
+                    <span className="font-mono text-white font-medium">
+                      {currentUser.totalXP.toLocaleString()} XP
+                    </span>
+                  </div>
+                </div>
+
+                {/* Quick Simulation Options */}
+                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
+                  Simulate Coding Activity
+                </div>
+                <button
+                  onClick={() => {
+                    simulateCodingActivity("leetcode_med");
+                    setIsUserMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-white/5 text-left transition-colors"
+                >
+                  <Code2 className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Solve LeetCode (+25 XP)</span>
+                </button>
+                <button
+                  onClick={() => {
+                    simulateCodingActivity("github_push");
+                    setIsUserMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-white/5 text-left transition-colors"
+                >
+                  <GitCommit className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Push Git Commits (+6 XP)</span>
+                </button>
+
+                {/* Member Switcher */}
+                <div className="px-3 py-1 mt-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 border-t border-white/5 pt-2">
+                  Switch Member View
+                </div>
+                {Object.values(allUsers).map((u) => (
+                  <button
+                    key={u.id}
+                    onClick={() => {
+                      switchUser(u.id);
+                      setIsUserMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                      u.id === currentUser.id
+                        ? "bg-white/10 text-white font-medium"
+                        : "text-zinc-400 hover:text-white hover:bg-white/5"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={u.photoURL}
+                        alt={u.displayName}
+                        className="w-5 h-5 rounded-full object-cover"
+                      />
+                      <span>{u.displayName}</span>
+                    </div>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      Lvl {u.level}
+                    </span>
+                  </button>
+                ))}
+
+                {/* Settings & Tour */}
+                <div className="border-t border-white/5 mt-2 pt-1.5">
+                  <button
+                    onClick={() => {
+                      onOpenOnboarding();
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>View Onboarding Tour</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      onOpenGroupSettings();
+                      setIsUserMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Squad Settings</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}

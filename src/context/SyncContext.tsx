@@ -25,7 +25,7 @@ import {
   ChallengeMetric,
 } from "@/types";
 import { XP_REWARDS, calculateLevel } from "@/lib/constants";
-import { auth, db } from "@/lib/firebase/config";
+import { auth, db, handleFirestoreQuotaExceeded, isFirestoreQuotaExceeded } from "@/lib/firebase/config";
 import {
   signInWithPopup,
   GoogleAuthProvider,
@@ -329,8 +329,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             })
           );
         }
-      } catch (e) {
-        console.error("Error setting up user profile in Firestore:", e);
+      } catch (e: any) {
+        if (e?.code === "resource-exhausted" || e?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
+        } else {
+          console.error("Error setting up user profile in Firestore:", e);
+        }
       } finally {
         setAuthLoading(false);
       }
@@ -352,6 +356,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("User profile sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching user profile:", err);
@@ -376,6 +381,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Users directory sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching users:", err);
@@ -398,6 +404,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Group metadata sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching group:", err);
@@ -422,6 +429,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Group members sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching members:", err);
@@ -466,6 +474,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Tasks sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching tasks:", err);
@@ -494,6 +503,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Activities sync paused (Firestore daily quota).");
           return;
         }
@@ -530,6 +540,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Challenges sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching challenges:", err);
@@ -554,6 +565,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          handleFirestoreQuotaExceeded();
           console.warn("Notifications sync paused (Firestore daily quota).");
         } else {
           console.error("Error fetching notifications:", err);

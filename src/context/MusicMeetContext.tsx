@@ -18,7 +18,7 @@ import {
 import { CURATED_FOCUS_STATIONS, DEFAULT_MEET_URL } from "@/lib/demo-data";
 import { XP_REWARDS } from "@/lib/constants";
 import { useSync } from "@/context/SyncContext";
-import { db } from "@/lib/firebase/config";
+import { db, handleFirestoreQuotaExceeded } from "@/lib/firebase/config";
 import { collection, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { cleanFirestoreData } from "@/lib/firebase/utils";
 import {
@@ -179,6 +179,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
           quotaExceededRef.current = true;
+          handleFirestoreQuotaExceeded();
           console.warn("Firestore presence subscription paused (daily free quota reached).");
         } else {
           console.error("Error subscribing to presence:", err);
@@ -225,6 +226,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           setDoc(roomRef, cleanFirestoreData(DEFAULT_FOCUS_ROOM)).catch((e: any) => {
             if (e?.code === "resource-exhausted" || e?.message?.includes("Quota")) {
               quotaExceededRef.current = true;
+              handleFirestoreQuotaExceeded();
             }
           });
         }
@@ -232,6 +234,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
           quotaExceededRef.current = true;
+          handleFirestoreQuotaExceeded();
           console.warn("Firestore room subscription paused (daily free quota reached).");
         } else {
           console.error("Error subscribing to focusRoom:", err);
@@ -301,6 +304,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       setDoc(presenceRef, presenceData, { merge: true }).catch((err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
           quotaExceededRef.current = true;
+          handleFirestoreQuotaExceeded();
           console.warn("Firestore write quota reached. Switched to local in-memory presence mode.");
         } else {
           console.error("Failed to update presence:", err);

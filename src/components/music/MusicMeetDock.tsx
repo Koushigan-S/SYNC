@@ -62,6 +62,7 @@ export function MusicMeetDock() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [showSpotifyEmbed, setShowSpotifyEmbed] = useState(false);
 
   // Active friends presence (excluding current user or showing everyone)
   const squadPresences = Object.values(presences).filter(
@@ -418,17 +419,108 @@ export function MusicMeetDock() {
           {isDockExpanded && (
             <div className="mt-4 pt-4 border-t border-white/10 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                {/* Embedded Live Spotify Web Player */}
-                <div className="lg:col-span-6 rounded-xl overflow-hidden bg-black/50 border border-white/10 shadow-inner">
-                  <iframe
-                    title="Spotify Web Embed Player"
-                    src={currentTrack.embedUri}
-                    width="100%"
-                    height="160"
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                    className="rounded-xl border-0"
-                  />
+                {/* SYNC Studio High-Fidelity Soundstage Card */}
+                <div className="lg:col-span-6 rounded-xl overflow-hidden bg-black/60 border border-white/10 p-3.5 flex flex-col justify-between relative group">
+                  {showSpotifyEmbed ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono text-zinc-400">Spotify Web Embed</span>
+                        <button
+                          type="button"
+                          onClick={() => setShowSpotifyEmbed(false)}
+                          className="text-[10px] text-zinc-400 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10"
+                        >
+                          ✕ Close Embed
+                        </button>
+                      </div>
+                      <iframe
+                        title="Spotify Web Embed Player"
+                        src={currentTrack.embedUri}
+                        width="100%"
+                        height="130"
+                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                        loading="lazy"
+                        className="rounded-lg border-0"
+                      />
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-white/15 shadow-md">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={currentTrack.albumArt || "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=300"}
+                            alt={currentTrack.title}
+                            className={`w-full h-full object-cover transition-transform duration-500 ${
+                              isPlaying ? "scale-105" : "grayscale-[30%]"
+                            }`}
+                          />
+                          {isPlaying && (
+                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                              <div className="flex items-end gap-1 h-4">
+                                <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s] h-3" />
+                                <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.15s] h-4" />
+                                <span className="w-1 bg-emerald-400 rounded-full animate-bounce h-2" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
+                              {currentTrack.genre || "Focus Station"}
+                            </span>
+                            <span className="text-[10px] font-mono text-zinc-500">
+                              320kbps Lossless
+                            </span>
+                          </div>
+                          <div className="font-semibold text-sm text-white truncate">
+                            {currentTrack.title}
+                          </div>
+                          <div className="text-xs text-zinc-400 truncate">
+                            {currentTrack.artist}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/5">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              isPlaying ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"
+                            }`}
+                          />
+                          <span className="text-[11px] text-zinc-400 font-mono">
+                            {isPlaying ? "Live Audio Stream Active" : "Audio Paused"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {currentTrack.spotifyUrl && (
+                            <a
+                              href={currentTrack.spotifyUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-zinc-300 hover:text-white flex items-center gap-1 transition-colors"
+                              title="Open on Spotify Web"
+                            >
+                              <span>Spotify Web</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setShowSpotifyEmbed(true)}
+                            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                            title="Load Spotify Embed Player"
+                          >
+                            Embed Widget
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* Spotify Controls with Tabbed Modes */}

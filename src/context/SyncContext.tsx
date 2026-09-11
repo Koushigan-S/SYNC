@@ -343,11 +343,21 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!firebaseUser) return;
     const userDocRef = doc(db, "users", firebaseUser.uid);
-    const unsub = onSnapshot(userDocRef, (snap) => {
-      if (snap.exists()) {
-        setCurrentUserProfile(snap.data() as UserProfile);
+    const unsub = onSnapshot(
+      userDocRef,
+      (snap) => {
+        if (snap.exists()) {
+          setCurrentUserProfile(snap.data() as UserProfile);
+        }
+      },
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("User profile sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching user profile:", err);
+        }
       }
-    });
+    );
     return () => unsub();
   }, [firebaseUser]);
 
@@ -364,7 +374,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         setAllUsers(usersMap);
       },
-      (err) => console.error("Error fetching users:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Users directory sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching users:", err);
+        }
+      }
     );
     return () => unsub();
   }, [firebaseUser]);
@@ -380,7 +396,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           setCurrentGroup(snap.data() as Group);
         }
       },
-      (err) => console.error("Error fetching group:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Group metadata sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching group:", err);
+        }
+      }
     );
     return () => unsub();
   }, [firebaseUser, currentGroupId]);
@@ -398,7 +420,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         setMembers(mems);
       },
-      (err) => console.error("Error fetching members:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Group members sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching members:", err);
+        }
+      }
     );
     return () => unsub();
   }, [firebaseUser, currentGroupId]);
@@ -436,7 +464,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         setTasks(tList);
         setParticipants(pList);
       },
-      (err) => console.error("Error fetching tasks:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Tasks sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching tasks:", err);
+        }
+      }
     );
     return () => unsub();
   }, [firebaseUser, currentGroupId]);
@@ -458,16 +492,24 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         setActivities(acts);
       },
-      (err) => {
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Activities sync paused (Firestore daily quota).");
+          return;
+        }
         // Fallback without order by if index isn't created yet
         const coll = collection(db, "groups", currentGroupId, "activities");
-        onSnapshot(coll, (snap) => {
-          const acts: ActivityFeedItem[] = [];
-          snap.forEach((d) => {
-            acts.push({ id: d.id, ...d.data() } as ActivityFeedItem);
-          });
-          setActivities(acts);
-        });
+        onSnapshot(
+          coll,
+          (snap) => {
+            const acts: ActivityFeedItem[] = [];
+            snap.forEach((d) => {
+              acts.push({ id: d.id, ...d.data() } as ActivityFeedItem);
+            });
+            setActivities(acts);
+          },
+          () => {}
+        );
       }
     );
     return () => unsub();
@@ -486,7 +528,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         setChallenges(chals);
       },
-      (err) => console.error("Error fetching challenges:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Challenges sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching challenges:", err);
+        }
+      }
     );
     return () => unsub();
   }, [firebaseUser, currentGroupId]);
@@ -504,7 +552,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         });
         setNotifications(notifs);
       },
-      (err) => console.error("Error fetching notifications:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          console.warn("Notifications sync paused (Firestore daily quota).");
+        } else {
+          console.error("Error fetching notifications:", err);
+        }
+      }
     );
     return () => unsub();
   }, [firebaseUser]);

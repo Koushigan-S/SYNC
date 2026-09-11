@@ -64,6 +64,7 @@ export default function FocusRoomPage() {
   const [meetUrlInput, setMeetUrlInput] = useState(focusRoom.meetUrl);
   const [customTrackInput, setCustomTrackInput] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
+  const [showSpotifyEmbed, setShowSpotifyEmbed] = useState(false);
 
   const isInRoom = focusRoom.activeMemberIds.includes(currentUser.id);
 
@@ -531,17 +532,122 @@ export default function FocusRoomPage() {
               </div>
             )}
 
-            {/* Embedded Spotify Web Player */}
-            <div className="rounded-2xl overflow-hidden bg-black/60 border border-white/10 shadow-xl">
-              <iframe
-                title="Squad Spotify Jukebox Embed"
-                src={currentTrack.embedUri}
-                width="100%"
-                height="232"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                className="rounded-2xl border-0 w-full"
-              />
+            {/* SYNC Soundstage Jukebox Console */}
+            <div className="rounded-2xl overflow-hidden bg-black/60 border border-white/10 p-5 shadow-xl">
+              {showSpotifyEmbed ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-zinc-400">Spotify Web Embed Player</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowSpotifyEmbed(false)}
+                      className="text-xs text-zinc-400 hover:text-white px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
+                    >
+                      ✕ Return to Jukebox Console
+                    </button>
+                  </div>
+                  <iframe
+                    title="Squad Spotify Jukebox Embed"
+                    src={currentTrack.embedUri}
+                    width="100%"
+                    height="180"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy"
+                    className="rounded-xl border-0 w-full"
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
+                  <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
+                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 border border-white/15 shadow-2xl">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={currentTrack.albumArt || "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400"}
+                        alt={currentTrack.title}
+                        className={`w-full h-full object-cover transition-transform duration-700 ${
+                          isPlaying ? "scale-105" : "grayscale-[30%]"
+                        }`}
+                      />
+                      {isPlaying && (
+                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                          <div className="flex items-end gap-1 h-6">
+                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s] h-4" />
+                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.15s] h-6" />
+                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce h-3" />
+                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.2s] h-5" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-mono border border-emerald-500/25">
+                          {currentTrack.genre || "Focus Station"}
+                        </span>
+                        <span className="text-[11px] font-mono text-zinc-500">
+                          320kbps Lossless Audio
+                        </span>
+                      </div>
+                      <div className="font-bold text-base sm:text-lg text-white truncate">
+                        {currentTrack.title}
+                      </div>
+                      <div className="text-xs sm:text-sm text-zinc-400 truncate">
+                        {currentTrack.artist}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            isPlaying ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"
+                          }`}
+                        />
+                        <span className="text-xs text-zinc-400 font-mono">
+                          {isPlaying ? "Live Audio Stream Playing" : "Stream Paused"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={togglePlay}
+                      className="px-4 py-2.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2"
+                    >
+                      {isPlaying ? (
+                        <>
+                          <Pause className="w-3.5 h-3.5 fill-current" />
+                          <span>Pause Audio</span>
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Play Audio</span>
+                        </>
+                      )}
+                    </button>
+                    {currentTrack.spotifyUrl && (
+                      <a
+                        href={currentTrack.spotifyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white transition-colors"
+                        title="Open on Spotify Web"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setShowSpotifyEmbed(true)}
+                      className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-400 hover:text-white transition-colors"
+                      title="Load Spotify Embed Player"
+                    >
+                      Embed Widget
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Focus Stations Carousel / Grid */}

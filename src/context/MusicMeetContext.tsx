@@ -107,6 +107,10 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const currentTrackRef = useRef<SpotifyTrack>(currentTrack);
   const isPlayingRef = useRef<boolean>(isPlaying);
   const listeningWithRef = useRef<string | null>(listeningWith);
+  const lastPresenceWriteKeyRef = useRef<string>("");
+  const presenceDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const quotaExceededRef = useRef<boolean>(false);
+  const roomInitAttemptedRef = useRef<boolean>(false);
 
   useEffect(() => {
     currentTrackRef.current = currentTrack;
@@ -146,6 +150,14 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         snap.forEach((d) => {
           presMap[d.id] = d.data() as UserMusicPresence;
         });
+
+        // Compute listenersCount client-side dynamically
+        Object.keys(presMap).forEach((uid) => {
+          presMap[uid].listenersCount = Object.values(presMap).filter(
+            (p) => p.listeningWithUserId === uid
+          ).length;
+        });
+
         setPresences(presMap);
 
         // Reactive follow: if we are listening with a teammate, synchronize to their track!
@@ -164,7 +176,14 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           }
         }
       },
-      (err) => console.error("Error subscribing to presence:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          quotaExceededRef.current = true;
+          console.warn("Firestore presence subscription paused (daily free quota reached).");
+        } else {
+          console.error("Error subscribing to presence:", err);
+        }
+      }
     );
     return () => unsub();
   }, [currentUser?.id, currentGroup?.id]);
@@ -200,23 +219,38 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-        } else {
-          // Initialize in Firestore if doesn't exist
-          setDoc(roomRef, cleanFirestoreData(DEFAULT_FOCUS_ROOM)).catch((e) =>
-            console.error("Failed to init focusRoom in Firestore:", e)
-          );
+        } else if (!roomInitAttemptedRef.current && !quotaExceededRef.current) {
+          // Initialize in Firestore once if doesn't exist
+          roomInitAttemptedRef.current = true;
+          setDoc(roomRef, cleanFirestoreData(DEFAULT_FOCUS_ROOM)).catch((e: any) => {
+            if (e?.code === "resource-exhausted" || e?.message?.includes("Quota")) {
+              quotaExceededRef.current = true;
+            }
+          });
         }
       },
-      (err) => console.error("Error subscribing to focusRoom:", err)
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          quotaExceededRef.current = true;
+          console.warn("Firestore room subscription paused (daily free quota reached).");
+        } else {
+          console.error("Error subscribing to focusRoom:", err);
+        }
+      }
     );
     return () => unsub();
   }, [currentUser?.id, currentGroup?.id]);
 
-  // Sync current user's playback state to Firestore presence
+  // Sync current user's playback state to Firestore presence (debounced, deduplicated, loop-free)
   useEffect(() => {
     if (!currentUser?.id || currentUser.id === "guest" || !currentGroup?.id) return;
 
-    const presenceRef = doc(db, "groups", currentGroup.id, "presence", currentUser.id);
+    // Deduplicate payload: only write if actual playback/track/sync parameters changed
+    const payloadKey = `${currentUser.id}_${Boolean(isPlaying)}_${currentTrack?.id || "none"}_${listeningWith || "none"}_${Boolean(isBroadcasting)}`;
+    if (payloadKey === lastPresenceWriteKeyRef.current) {
+      return;
+    }
+
     const cleanTrack = currentTrack
       ? {
           id: currentTrack.id,
@@ -232,10 +266,6 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         }
       : null;
 
-    const myListeners = Object.values(presences).filter(
-      (p) => p.listeningWithUserId === currentUser.id
-    );
-
     const presenceData: UserMusicPresence = cleanFirestoreData({
       userId: currentUser.id,
       isPlaying: Boolean(isPlaying),
@@ -243,21 +273,53 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       progressMs: 30000,
       listeningWithUserId: listeningWith ? listeningWith : null,
       isBroadcasting: Boolean(isBroadcasting),
-      listenersCount: myListeners.length,
       lastUpdated: new Date().toISOString(),
     });
 
-    setDoc(presenceRef, presenceData, { merge: true }).catch((err) =>
-      console.error("Failed to update presence:", err)
-    );
+    // Update local in-memory presence immediately so local user sees their own state with zero latency
+    setPresences((prev) => ({
+      ...prev,
+      [currentUser.id]: {
+        ...presenceData,
+        listenersCount: Object.values(prev).filter(
+          (p) => p.listeningWithUserId === currentUser.id
+        ).length,
+      },
+    }));
+
+    if (quotaExceededRef.current) return;
+
+    // Debounce writes to Firestore by 1500ms to avoid burst requests
+    if (presenceDebounceTimerRef.current) {
+      clearTimeout(presenceDebounceTimerRef.current);
+    }
+
+    presenceDebounceTimerRef.current = setTimeout(() => {
+      lastPresenceWriteKeyRef.current = payloadKey;
+      const presenceRef = doc(db, "groups", currentGroup.id, "presence", currentUser.id);
+
+      setDoc(presenceRef, presenceData, { merge: true }).catch((err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          quotaExceededRef.current = true;
+          console.warn("Firestore write quota reached. Switched to local in-memory presence mode.");
+        } else {
+          console.error("Failed to update presence:", err);
+        }
+      });
+    }, 1500);
+
+    return () => {
+      if (presenceDebounceTimerRef.current) {
+        clearTimeout(presenceDebounceTimerRef.current);
+      }
+    };
   }, [
     currentUser?.id,
     currentGroup?.id,
     isPlaying,
-    currentTrack,
+    currentTrack?.id,
     listeningWith,
     isBroadcasting,
-    presences,
   ]);
 
   // Pomodoro countdown timer tick

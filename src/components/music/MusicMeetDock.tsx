@@ -16,6 +16,7 @@ import {
   Sparkles,
   Radio,
   Volume2,
+  VolumeX,
   Users,
   Check,
   Disc3,
@@ -38,6 +39,8 @@ export function MusicMeetDock() {
     stations,
     isDockExpanded,
     isSpotifyConfigured,
+    volume,
+    isMuted,
     togglePlay,
     changeTrack,
     tuneInToMember,
@@ -47,6 +50,7 @@ export function MusicMeetDock() {
     loadCustomTrack,
     searchTracks,
     toggleGroupListening,
+    toggleMute,
   } = useMusicMeet();
 
   const [customInput, setCustomInput] = useState("");
@@ -111,7 +115,7 @@ export function MusicMeetDock() {
                   className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-cover border border-white/15 shadow-md transition-transform group-hover:scale-105"
                 />
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#1DB954] flex items-center justify-center shadow-sm">
-                  <Disc3 className="w-2.5 h-2.5 text-black animate-spin-slow" />
+                  <Disc3 className={`w-2.5 h-2.5 text-black ${isPlaying ? "animate-spin-slow" : ""}`} />
                 </div>
               </div>
 
@@ -157,13 +161,31 @@ export function MusicMeetDock() {
               <button
                 onClick={togglePlay}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white text-black hover:bg-zinc-200 flex items-center justify-center transition-all shadow-md active:scale-95"
-                title={isPlaying ? "Pause Focus Beats" : "Resume Focus Beats"}
+                title={isPlaying ? "Pause Focus Beats" : "Play Focus Beats"}
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? (
                   <Pause className="w-4 h-4 fill-current" />
                 ) : (
                   <Play className="w-4 h-4 fill-current ml-0.5" />
+                )}
+              </button>
+
+              {/* Mute / Unmute Button */}
+              <button
+                onClick={toggleMute}
+                className={`p-2 rounded-xl transition-colors border ${
+                  isMuted
+                    ? "bg-red-500/20 text-red-400 border-red-500/30"
+                    : "bg-white/5 hover:bg-white/10 border-white/10 text-zinc-400 hover:text-white"
+                }`}
+                title={isMuted ? "Unmute Audio" : "Mute Audio"}
+                aria-label={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted ? (
+                  <VolumeX className="w-4 h-4" />
+                ) : (
+                  <Volume2 className="w-4 h-4" />
                 )}
               </button>
 

@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import confetti from "canvas-confetti";
 import {
@@ -36,6 +37,8 @@ interface MusicMeetContextType {
   userMicEnabled: boolean;
   userVideoEnabled: boolean;
   isSpotifyConfigured: boolean;
+  volume: number;
+  isMuted: boolean;
 
   // Actions
   togglePlay: () => void;
@@ -54,6 +57,8 @@ interface MusicMeetContextType {
   setDockExpanded: (expanded: boolean) => void;
   loadCustomTrack: (urlOrUri: string) => boolean;
   searchTracks: (query: string) => Promise<SpotifyTrack[]>;
+  setVolume: (vol: number) => void;
+  toggleMute: () => void;
 }
 
 const MusicMeetContext = createContext<MusicMeetContextType | null>(null);
@@ -78,7 +83,28 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const [currentTrack, setCurrentTrack] = useState<SpotifyTrack>(
     CURATED_FOCUS_STATIONS[0].track
   );
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  // Default to PAUSED on initial web open as requested
+  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [volume, setVolumeState] = useState<number>(0.8);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
+
+  // Persistent HTML5 audio player for instant audible focus sound
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const audio = new Audio();
+    audio.preload = "none";
+    audio.loop = true;
+    audio.volume = 0.8;
+    audioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.src = "";
+      audioRef.current = null;
+    };
+  }, []);
   const [presences, setPresences] = useState<Record<string, UserMusicPresence>>({});
   const [listeningWith, setListeningWith] = useState<string | null>(null);
   const [focusRoom, setFocusRoom] = useState<FocusRoom>(DEFAULT_FOCUS_ROOM);
@@ -260,13 +286,56 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   }, [focusRoom.pomodoro.isActive, currentUser.id, currentGroup?.id, awardXP, addToast]);
 
   const togglePlay = useCallback(() => {
-    setIsPlaying((prev) => !prev);
-  }, []);
+    if (!audioRef.current) {
+      setIsPlaying((prev) => !prev);
+      return;
+    }
+
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      const stream = currentTrack?.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
+      if (stream) {
+        if (audioRef.current.src !== stream) {
+          audioRef.current.src = stream;
+        }
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((err) => {
+            console.warn("Direct stream play interrupted:", err);
+            setIsPlaying(false);
+          });
+      } else {
+        setIsPlaying(true);
+      }
+    }
+  }, [isPlaying, currentTrack]);
 
   const changeTrack = useCallback((track: SpotifyTrack) => {
     setCurrentTrack(track);
-    setIsPlaying(true);
     setListeningWith(null);
+
+    const stream = track.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
+    if (audioRef.current && stream) {
+      if (audioRef.current.src !== stream) {
+        audioRef.current.src = stream;
+      }
+      audioRef.current
+        .play()
+        .then(() => {
+          setIsPlaying(true);
+        })
+        .catch((err) => {
+          console.warn("Audio changeTrack play error:", err);
+          setIsPlaying(false);
+        });
+    } else {
+      setIsPlaying(true);
+    }
   }, []);
 
   const tuneInToMember = useCallback(
@@ -283,8 +352,25 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       }
 
       setCurrentTrack(presence.track);
-      setIsPlaying(true);
       setListeningWith(targetUserId);
+
+      const stream = presence.track.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
+      if (audioRef.current && stream) {
+        if (audioRef.current.src !== stream) {
+          audioRef.current.src = stream;
+        }
+        audioRef.current
+          .play()
+          .then(() => {
+            setIsPlaying(true);
+          })
+          .catch((err) => {
+            console.warn("Audio tuneIn play error:", err);
+            setIsPlaying(false);
+          });
+      } else {
+        setIsPlaying(true);
+      }
 
       addToast({
         title: `🎧 Tuned into ${targetUser?.displayName || "Squad Member"}`,
@@ -501,12 +587,24 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           ? trimmed
           : `https://open.spotify.com/track/${trimmed.split(":")[2] || ""}`,
         embedUri,
+        streamUrl: CURATED_FOCUS_STATIONS[0].track.streamUrl,
         genre: "Custom Audio",
       };
 
       setCurrentTrack(customTrack);
-      setIsPlaying(true);
       setListeningWith(null);
+
+      if (audioRef.current && customTrack.streamUrl) {
+        if (audioRef.current.src !== customTrack.streamUrl) {
+          audioRef.current.src = customTrack.streamUrl;
+        }
+        audioRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch(() => setIsPlaying(false));
+      } else {
+        setIsPlaying(true);
+      }
 
       addToast({
         title: "Loaded Spotify Audio",
@@ -521,6 +619,27 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
 
   const searchTracks = useCallback(async (query: string): Promise<SpotifyTrack[]> => {
     return searchSpotify(query);
+  }, []);
+
+  const setVolume = useCallback((val: number) => {
+    const clamped = Math.max(0, Math.min(1, val));
+    setVolumeState(clamped);
+    if (audioRef.current) {
+      audioRef.current.volume = clamped;
+    }
+    if (clamped > 0 && isMuted) {
+      setIsMuted(false);
+    }
+  }, [isMuted]);
+
+  const toggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      if (audioRef.current) {
+        audioRef.current.muted = next;
+      }
+      return next;
+    });
   }, []);
 
   const credentials = getSpotifyCredentials();
@@ -544,6 +663,8 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         userMicEnabled,
         userVideoEnabled,
         isSpotifyConfigured,
+        volume,
+        isMuted,
         togglePlay,
         changeTrack,
         tuneInToMember,
@@ -560,6 +681,8 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         setDockExpanded,
         loadCustomTrack,
         searchTracks,
+        setVolume,
+        toggleMute,
       }}
     >
       {children}

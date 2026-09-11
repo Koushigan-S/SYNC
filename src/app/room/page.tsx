@@ -448,34 +448,59 @@ export default function FocusRoomPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-[#1DB954]/20 border border-[#1DB954]/30 flex items-center justify-center text-[#1DB954]">
-                  <Disc3 className="w-4 h-4 animate-spin-slow" />
+                  <Disc3 className={`w-4 h-4 ${isPlaying ? "animate-spin-slow" : ""}`} />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-white">
-                    Squad Spotify Jukebox
+                    Squad Focus Audio & Jukebox
                   </h3>
                   <p className="text-[11px] text-zinc-400">
-                    Embedded real-time player. Switch focus stations or broadcast to the room.
+                    Live synchronized audio stream. Switch focus stations or control playback.
                   </p>
                 </div>
               </div>
 
-              {/* Mode Switch: Broadcast vs Solo */}
-              <button
-                onClick={toggleGroupListening}
-                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                  focusRoom.isGroupListening
-                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 shadow-sm"
-                    : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
-                }`}
-              >
-                <Radio className="w-3.5 h-3.5" />
-                <span>
-                  {focusRoom.isGroupListening
-                    ? "🎧 Broadcast: Listen Together"
-                    : "Solo Stream Mode"}
-                </span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* 1-Click Play / Pause Button for instant audible streaming */}
+                <button
+                  onClick={togglePlay}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    isPlaying
+                      ? "bg-white text-black border-white shadow-sm"
+                      : "bg-white/10 hover:bg-white/20 border-white/20 text-white"
+                  }`}
+                  title={isPlaying ? "Pause Focus Beats" : "Play Focus Beats"}
+                >
+                  {isPlaying ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5 fill-current" />
+                      <span>Pause Audio</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                      <span>Play Focus Audio</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Mode Switch: Broadcast vs Solo */}
+                <button
+                  onClick={toggleGroupListening}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                    focusRoom.isGroupListening
+                      ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 shadow-sm"
+                      : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  <Radio className="w-3.5 h-3.5" />
+                  <span>
+                    {focusRoom.isGroupListening
+                      ? "🎧 Broadcast: Listen Together"
+                      : "Solo Stream Mode"}
+                  </span>
+                </button>
+              </div>
             </div>
 
             {/* Embedded Spotify Web Player */}

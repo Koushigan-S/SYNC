@@ -249,6 +249,7 @@ export interface SpotifyTrack {
   albumArt: string;
   spotifyUrl: string;
   embedUri: string;
+  streamUrl?: string;
   durationMs?: number;
   genre?: string;
 }

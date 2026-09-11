@@ -30,12 +30,12 @@ export default function LeaderboardPage() {
   // Calculate sorted members based on selected timeframe
   const sortedMembers = [...members].sort((a, b) => {
     if (timeframe === "weekly") {
-      return (b.userSnapshot.weeklyXP || 0) - (a.userSnapshot.weeklyXP || 0);
+      return (b.userSnapshot?.weeklyXP || 0) - (a.userSnapshot?.weeklyXP || 0);
     }
     if (timeframe === "monthly") {
-      return (b.userSnapshot.monthlyXP || 0) - (a.userSnapshot.monthlyXP || 0);
+      return (b.userSnapshot?.monthlyXP || 0) - (a.userSnapshot?.monthlyXP || 0);
     }
-    return b.userSnapshot.totalXP - a.userSnapshot.totalXP;
+    return (b.userSnapshot?.totalXP || 0) - (a.userSnapshot?.totalXP || 0);
   });
 
   const getRankMovement = (userId: string) => {
@@ -89,10 +89,10 @@ export default function LeaderboardPage() {
           const rank = index + 1;
           const xpValue =
             timeframe === "weekly"
-              ? member.userSnapshot.weeklyXP || 0
+              ? member.userSnapshot?.weeklyXP || 0
               : timeframe === "monthly"
-              ? member.userSnapshot.monthlyXP || 0
-              : member.userSnapshot.totalXP;
+              ? member.userSnapshot?.monthlyXP || 0
+              : member.userSnapshot?.totalXP || 0;
 
           return (
             <TiltCard
@@ -124,7 +124,7 @@ export default function LeaderboardPage() {
 
                 <div className="flex items-center gap-1 text-[11px] text-zinc-400 font-mono">
                   <Flame className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{member.userSnapshot.streak}d streak</span>
+                  <span>{member.userSnapshot?.streak || 1}d streak</span>
                 </div>
               </div>
 
@@ -132,16 +132,16 @@ export default function LeaderboardPage() {
               <div className="mt-4 flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={member.userSnapshot.photoURL}
-                  alt={member.userSnapshot.displayName}
+                  src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                  alt={member.userSnapshot?.displayName || "Member"}
                   className="w-12 h-12 rounded-full object-cover border-2 border-white/15"
                 />
                 <div>
                   <h3 className="text-sm font-semibold text-white">
-                    {member.userSnapshot.displayName}
+                    {member.userSnapshot?.displayName || "Member"}
                   </h3>
                   <div className="text-xs text-zinc-400">
-                    @{member.userSnapshot.username} · Level {member.userSnapshot.level}
+                    @{member.userSnapshot?.username || "member"} · Level {member.userSnapshot?.level || 1}
                   </div>
                 </div>
               </div>
@@ -201,10 +201,10 @@ export default function LeaderboardPage() {
               const userAnalytic = analytics[member.userId];
               const xpValue =
                 timeframe === "weekly"
-                  ? member.userSnapshot.weeklyXP || 0
+                  ? member.userSnapshot?.weeklyXP || 0
                   : timeframe === "monthly"
-                  ? member.userSnapshot.monthlyXP || 0
-                  : member.userSnapshot.totalXP;
+                  ? member.userSnapshot?.monthlyXP || 0
+                  : member.userSnapshot?.totalXP || 0;
 
               return (
                 <motion.div
@@ -231,14 +231,14 @@ export default function LeaderboardPage() {
 
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={member.userSnapshot.photoURL}
-                      alt={member.userSnapshot.displayName}
+                      src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                      alt={member.userSnapshot?.displayName || "Member"}
                       className="w-9 h-9 rounded-full object-cover border border-white/10"
                     />
 
                     <div>
                       <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                        <span>{member.userSnapshot.displayName}</span>
+                        <span>{member.userSnapshot?.displayName || "Member"}</span>
                         {isYou && (
                           <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-white font-normal">
                             You
@@ -246,11 +246,11 @@ export default function LeaderboardPage() {
                         )}
                       </div>
                       <div className="text-[11px] text-zinc-500 flex items-center gap-2 mt-0.5">
-                        <span>Level {member.userSnapshot.level}</span>
+                        <span>Level {member.userSnapshot?.level || 1}</span>
                         <span>·</span>
                         <span className="flex items-center gap-1 text-amber-400/90 font-mono">
                           <Flame className="w-2.5 h-2.5" />
-                          {member.userSnapshot.streak}d
+                          {member.userSnapshot?.streak || 1}d
                         </span>
                       </div>
                     </div>
@@ -265,7 +265,7 @@ export default function LeaderboardPage() {
                       {userAnalytic?.github.totalContributionsYear || 0} commits
                     </div>
                     <div className="hidden sm:inline w-20 text-zinc-300 font-mono">
-                      {member.userSnapshot.tasksCompleted || 32} done
+                      {member.userSnapshot?.tasksCompleted || 0} done
                     </div>
                     <div className="w-24 text-right">
                       <div className="font-mono font-semibold text-white">

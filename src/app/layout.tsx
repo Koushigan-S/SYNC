@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SyncProvider } from "@/context/SyncContext";
+import { MusicMeetProvider } from "@/context/MusicMeetContext";
 import { AppShell } from "@/components/layout/AppShell";
 
 const geistSans = Geist({
@@ -49,7 +50,9 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-black text-white antialiased font-sans">
         <SyncProvider>
-          <AppShell>{children}</AppShell>
+          <MusicMeetProvider>
+            <AppShell>{children}</AppShell>
+          </MusicMeetProvider>
         </SyncProvider>
       </body>
     </html>

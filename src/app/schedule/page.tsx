@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { useSync } from "@/context/SyncContext";
 import { Task } from "@/types";
 import { TaskDetailModal } from "@/components/tasks/TaskDetailModal";
+import { TiltCard } from "@/components/ui/TiltCard";
 import {
   Calendar as CalendarIcon,
   Clock,
@@ -173,7 +174,7 @@ export default function SchedulePage() {
               const isOverdue = !isMyComplete && task.scheduledDate < todayStr;
 
               return (
-                <div
+                <TiltCard
                   key={task.id}
                   onClick={() => setSelectedTask(task)}
                   className="surface-card-hover p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer"
@@ -266,7 +267,7 @@ export default function SchedulePage() {
                       +{task.xpReward} XP
                     </span>
                   </div>
-                </div>
+                </TiltCard>
               );
             })
           )}

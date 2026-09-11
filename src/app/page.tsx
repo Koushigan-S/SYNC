@@ -50,12 +50,12 @@ export default function DashboardPage() {
   const todayTasks = tasks.filter((t) => t.scheduledDate === todayStr);
 
   const levelInfo = getLevelProgress(currentUser.totalXP);
-  const userAnalytics = analytics[currentUser.id] || analytics["user-nova"];
+  const userAnalytics = analytics[currentUser.id] || Object.values(analytics)[0];
   const chartData = userAnalytics?.xpHistory7Days || [];
 
   // Sort members by totalXP for compact leaderboard
   const sortedMembers = [...members].sort(
-    (a, b) => b.userSnapshot.totalXP - a.userSnapshot.totalXP
+    (a, b) => (b.userSnapshot?.totalXP || 0) - (a.userSnapshot?.totalXP || 0)
   );
 
   const filteredActivities = activities.filter((act) => {
@@ -453,13 +453,13 @@ export default function DashboardPage() {
                     </span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={member.userSnapshot.photoURL}
-                      alt={member.userSnapshot.displayName}
+                      src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                      alt={member.userSnapshot?.displayName || "Member"}
                       className="w-7 h-7 rounded-full object-cover border border-white/10"
                     />
                     <div>
                       <div className="text-xs font-medium text-white flex items-center gap-1">
-                        <span>{member.userSnapshot.displayName}</span>
+                        <span>{member.userSnapshot?.displayName || "Member"}</span>
                         {isCurrent && (
                           <span className="text-[10px] text-zinc-400">
                             (You)
@@ -467,17 +467,17 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="text-[10px] text-zinc-500">
-                        {member.userSnapshot.streak} day streak
+                        {member.userSnapshot?.streak || 1} day streak
                       </div>
                     </div>
                   </div>
 
                   <div className="text-right">
                     <div className="text-xs font-mono font-medium text-white">
-                      {member.userSnapshot.totalXP.toLocaleString()}
+                      {(member.userSnapshot?.totalXP || 0).toLocaleString()}
                     </div>
                     <div className="text-[10px] text-zinc-500 font-mono">
-                      Lvl {member.userSnapshot.level}
+                      Lvl {member.userSnapshot?.level || 1}
                     </div>
                   </div>
                 </div>

@@ -45,10 +45,10 @@ export default function AnalyticsPage() {
   const taskCompletionData = members.map((m) => {
     const memData = analytics[m.userId];
     return {
-      name: m.userSnapshot.displayName.split(" ")[0],
-      tasks: m.userSnapshot.tasksCompleted || 25,
+      name: (m.userSnapshot?.displayName || "Member").split(" ")[0],
+      tasks: m.userSnapshot?.tasksCompleted || 0,
       leetcode: memData?.leetcode.totalSolved || 0,
-      streak: m.userSnapshot.streak,
+      streak: m.userSnapshot?.streak || 1,
     };
   });
 

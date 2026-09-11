@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import { useSync } from "@/context/SyncContext";
+import { useMusicMeet } from "@/context/MusicMeetContext";
 import {
   Users,
   Flame,
@@ -15,21 +16,80 @@ import {
   ChevronDown,
   Activity,
   Layers,
+  Headphones,
+  Disc3,
+  ExternalLink,
+  Check,
 } from "lucide-react";
 import { TiltCard } from "@/components/ui/TiltCard";
 
 export default function FriendsPage() {
   const { members, currentUser, analytics, allUsers } = useSync();
+  const { presences, tuneInToMember, listeningWith } = useMusicMeet();
 
   // Head-to-head comparison member IDs
-  const [memberAId, setMemberAId] = useState<string>("user-nova");
-  const [memberBId, setMemberBId] = useState<string>("user-rahul");
-  const [selectedProfileId, setSelectedProfileId] = useState<string>("user-nova");
+  const availableMemberIds = members.map((m) => m.userId);
+  const currentUid = currentUser?.id || "";
 
-  const memberA = analytics[memberAId] || analytics["user-nova"];
-  const memberB = analytics[memberBId] || analytics["user-rahul"];
+  // Compute safe fallback analytics so properties are never undefined
+  const fallbackAnalytics = {
+    userId: currentUid,
+    displayName: currentUser?.displayName || "Squad Member",
+    username: currentUser?.username || "user",
+    photoURL:
+      currentUser?.photoURL ||
+      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+    level: currentUser?.level || 1,
+    totalXP: currentUser?.totalXP || 0,
+    weeklyXP: 0,
+    monthlyXP: 0,
+    rank: 1,
+    rankMovement: 0,
+    streak: currentUser?.streak?.current || 1,
+    tasksCompleted: 0,
+    consistencyScore: 50,
+    leetcode: {
+      username: currentUser?.username || "user",
+      totalSolved: 0,
+      easy: 0,
+      medium: 0,
+      hard: 0,
+      ranking: 100000,
+      recentSubmissions: [],
+    },
+    github: {
+      username: currentUser?.username || "user",
+      totalContributionsYear: 0,
+      currentStreak: currentUser?.streak?.current || 1,
+      contributionsByWeek: Array.from({ length: 16 }, () =>
+        Array.from({ length: 7 }, () => 0)
+      ),
+      recentCommits: [],
+    },
+    xpHistory7Days: [],
+    xpHistory30Days: [],
+  };
 
-  const activeProfile = analytics[selectedProfileId] || analytics["user-nova"];
+  const defaultAId = availableMemberIds[0] || currentUid;
+  const defaultBId = availableMemberIds[1] || availableMemberIds[0] || currentUid;
+  const defaultSelectedId = availableMemberIds[0] || currentUid;
+
+  const [memberAId, setMemberAId] = useState<string>("");
+  const [memberBId, setMemberBId] = useState<string>("");
+  const [selectedProfileId, setSelectedProfileId] = useState<string>("");
+
+  const effectiveAId = memberAId && analytics[memberAId] ? memberAId : defaultAId;
+  const effectiveBId = memberBId && analytics[memberBId] ? memberBId : defaultBId;
+  const effectiveSelectedId =
+    selectedProfileId && analytics[selectedProfileId]
+      ? selectedProfileId
+      : defaultSelectedId;
+
+  const memberA = analytics[effectiveAId] || analytics[currentUid] || fallbackAnalytics;
+  const memberB = analytics[effectiveBId] || analytics[currentUid] || fallbackAnalytics;
+
+  const activeProfile =
+    analytics[effectiveSelectedId] || analytics[currentUid] || fallbackAnalytics;
 
   return (
     <div className="space-y-10 animate-in fade-in duration-300">
@@ -39,7 +99,7 @@ export default function FriendsPage() {
           Squad Profiles & Comparison
         </h1>
         <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-          Deep-dive into individual coding consistency, contribution grids, and head-to-head stats.
+          Deep-dive into individual coding consistency, contribution grids, live Spotify presence, and head-to-head stats.
         </p>
       </div>
 
@@ -49,60 +109,119 @@ export default function FriendsPage() {
           Active Members ({members.length})
         </h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {members.map((member) => {
-            const isSelected = selectedProfileId === member.userId;
-            const memAnalytic = analytics[member.userId];
+          {members.length === 0 ? (
+            <div className="col-span-full surface-card p-6 text-center text-zinc-400 text-xs rounded-2xl border border-white/5">
+              Syncing squad members...
+            </div>
+          ) : (
+            members.map((member) => {
+              const isSelected = effectiveSelectedId === member.userId;
+              const memAnalytic = analytics[member.userId];
+              const musicPresence = presences[member.userId];
 
-            return (
-              <TiltCard
-                key={member.userId}
-                onClick={() => setSelectedProfileId(member.userId)}
-                className={`surface-card p-4 cursor-pointer transition-all ${
-                  isSelected
-                    ? "border-white/30 ring-1 ring-white/20 bg-[#161618]"
-                    : "hover:border-white/20"
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={member.userSnapshot.photoURL}
-                    alt={member.userSnapshot.displayName}
-                    className="w-11 h-11 rounded-full object-cover border border-white/10"
-                  />
-                  <div>
-                    <div className="text-xs font-semibold text-white">
-                      {member.userSnapshot.displayName}
-                    </div>
-                    <div className="text-[11px] text-zinc-400">
-                      Level {member.userSnapshot.level} · Lvl {member.userSnapshot.rank ? `#${member.userSnapshot.rank}` : ""}
+              return (
+                <TiltCard
+                  key={member.userId}
+                  onClick={() => setSelectedProfileId(member.userId)}
+                  className={`surface-card p-4 cursor-pointer transition-all ${
+                    isSelected
+                      ? "border-white/30 ring-1 ring-white/20 bg-[#161618]"
+                      : "hover:border-white/20"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={member.userSnapshot?.photoURL || fallbackAnalytics.photoURL}
+                      alt={member.userSnapshot?.displayName || "Member"}
+                      className="w-11 h-11 rounded-full object-cover border border-white/10"
+                    />
+                    <div>
+                      <div className="text-xs font-semibold text-white">
+                        {member.userSnapshot?.displayName || "Member"}
+                      </div>
+                      <div className="text-[11px] text-zinc-400">
+                        Level {member.userSnapshot?.level || 1} · Lvl{" "}
+                        {member.userSnapshot?.rank ? `#${member.userSnapshot.rank}` : ""}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-3 gap-2 text-center text-xs">
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">Streak</span>
-                    <span className="font-mono text-zinc-200">
-                      {member.userSnapshot.streak}d
-                    </span>
+                  <div className="mt-4 pt-3 border-t border-white/5 grid grid-cols-3 gap-2 text-center text-xs">
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">Streak</span>
+                      <span className="font-mono text-zinc-200">
+                        {member.userSnapshot?.streak || 1}d
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">LeetCode</span>
+                      <span className="font-mono text-zinc-200">
+                        {memAnalytic?.leetcode.totalSolved || 0}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-zinc-500 block">GitHub</span>
+                      <span className="font-mono text-zinc-200">
+                        {memAnalytic?.github.totalContributionsYear || 0}
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">LeetCode</span>
-                    <span className="font-mono text-zinc-200">
-                      {memAnalytic?.leetcode.totalSolved || 0}
-                    </span>
+
+                {/* Live Spotify Pill */}
+                {musicPresence?.track && (
+                  <div
+                    className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                      <span className="flex items-end gap-0.5 h-3 shrink-0" title="Now playing on Spotify">
+                        <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-1" />
+                        <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-2" />
+                        <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-3" />
+                      </span>
+                      <span className="text-[11px] text-zinc-300 truncate font-medium">
+                        {musicPresence.track.title}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      {member.userId !== currentUser.id && (
+                        <button
+                          onClick={() => tuneInToMember(member.userId)}
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors flex items-center gap-1 ${
+                            listeningWith === member.userId
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : "bg-white/10 hover:bg-white text-zinc-300 hover:text-black"
+                          }`}
+                          title="Tune In to this friend's track"
+                        >
+                          {listeningWith === member.userId ? (
+                            <>
+                              <Check className="w-2.5 h-2.5" /> Tuned
+                            </>
+                          ) : (
+                            <>
+                              <Headphones className="w-2.5 h-2.5" /> Tune In
+                            </>
+                          )}
+                        </button>
+                      )}
+                      <a
+                        href={musicPresence.track.spotifyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 text-zinc-500 hover:text-[#1DB954] transition-colors"
+                        title="Open in Spotify"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
                   </div>
-                  <div>
-                    <span className="text-[10px] text-zinc-500 block">GitHub</span>
-                    <span className="font-mono text-zinc-200">
-                      {memAnalytic?.github.totalContributionsYear || 0}
-                    </span>
-                  </div>
-                </div>
+                )}
               </TiltCard>
             );
-          })}
+          }))}
         </div>
       </div>
 
@@ -136,7 +255,36 @@ export default function FriendsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 text-xs">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              {presences[effectiveSelectedId]?.track && (
+                <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2.5">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={presences[effectiveSelectedId].track!.albumArt}
+                    alt={presences[effectiveSelectedId].track!.title}
+                    className="w-9 h-9 rounded-lg object-cover border border-white/10 shrink-0"
+                  />
+                  <div className="min-w-0 pr-1">
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#1DB954]" />
+                      Focus Audio
+                    </div>
+                    <div className="text-xs font-semibold text-white truncate max-w-[130px]">
+                      {presences[effectiveSelectedId].track!.title}
+                    </div>
+                  </div>
+                  {effectiveSelectedId !== currentUser?.id && (
+                    <button
+                      onClick={() => tuneInToMember(effectiveSelectedId)}
+                      className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[11px] font-semibold transition-colors flex items-center gap-1 shrink-0"
+                    >
+                      <Headphones className="w-3 h-3" />
+                      Tune In
+                    </button>
+                  )}
+                </div>
+              )}
+
               <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
                 <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
                   Consistency Score
@@ -197,7 +345,7 @@ export default function FriendsPage() {
                   Recent Submissions
                 </span>
                 <div className="space-y-1.5 text-xs">
-                  {activeProfile.leetcode.recentSubmissions.map((sub, i) => (
+                  {activeProfile.leetcode.recentSubmissions?.map((sub, i) => (
                     <div
                       key={i}
                       className="p-2 rounded-lg bg-white/5 flex items-center justify-between text-zinc-300"
@@ -222,7 +370,7 @@ export default function FriendsPage() {
                   </h4>
                 </div>
                 <span className="text-xs font-mono text-zinc-400">
-                  {activeProfile.github.totalContributionsYear} this year
+                  {activeProfile.github.totalContributionsYear || activeProfile.github.totalContributions || 0} this year
                 </span>
               </div>
 
@@ -232,7 +380,7 @@ export default function FriendsPage() {
                   16-Week Activity Heatmap
                 </span>
                 <div className="grid grid-flow-col grid-rows-7 gap-1 overflow-x-auto pb-2 custom-scrollbar">
-                  {activeProfile.github.contributionsByWeek.flatMap((week, wi) =>
+                  {(activeProfile.github.contributionsByWeek || []).flatMap((week, wi) =>
                     week.map((level, di) => (
                       <div
                         key={`${wi}-${di}`}
@@ -258,7 +406,7 @@ export default function FriendsPage() {
                   Recent Verified Commits
                 </span>
                 <div className="space-y-1.5 text-xs">
-                  {activeProfile.github.recentCommits.map((c, i) => (
+                  {(activeProfile.github.recentCommits || []).map((c, i) => (
                     <div
                       key={i}
                       className="p-2 rounded-lg bg-white/5 flex items-center justify-between text-zinc-300"
@@ -297,29 +445,41 @@ export default function FriendsPage() {
           {/* Member Selectors */}
           <div className="flex items-center gap-2">
             <select
-              value={memberAId}
+              value={effectiveAId}
               onChange={(e) => setMemberAId(e.target.value)}
               className="px-3 py-1.5 rounded-xl bg-[#1c1c1e] border border-white/10 text-xs text-white focus:outline-none"
             >
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.userSnapshot.displayName}
+              {members.length > 0 ? (
+                members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.userSnapshot?.displayName || m.userId}
+                  </option>
+                ))
+              ) : (
+                <option value={currentUid}>
+                  {currentUser?.displayName || "Squad Member"}
                 </option>
-              ))}
+              )}
             </select>
 
             <span className="text-xs font-bold text-zinc-500">VS</span>
 
             <select
-              value={memberBId}
+              value={effectiveBId}
               onChange={(e) => setMemberBId(e.target.value)}
               className="px-3 py-1.5 rounded-xl bg-[#1c1c1e] border border-white/10 text-xs text-white focus:outline-none"
             >
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>
-                  {m.userSnapshot.displayName}
+              {members.length > 0 ? (
+                members.map((m) => (
+                  <option key={m.userId} value={m.userId}>
+                    {m.userSnapshot?.displayName || m.userId}
+                  </option>
+                ))
+              ) : (
+                <option value={currentUid}>
+                  {currentUser?.displayName || "Squad Member"}
                 </option>
-              ))}
+              )}
             </select>
           </div>
         </div>
@@ -373,35 +533,35 @@ export default function FriendsPage() {
               },
               {
                 label: "Active Streak",
-                valA: memberA.streak,
-                valB: memberB.streak,
+                valA: memberA.streak || 0,
+                valB: memberB.streak || 0,
                 unit: "days",
               },
               {
                 label: "Tasks Completed",
-                valA: memberA.tasksCompleted,
-                valB: memberB.tasksCompleted,
+                valA: memberA.tasksCompleted || 0,
+                valB: memberB.tasksCompleted || 0,
                 unit: "tasks",
               },
               {
                 label: "LeetCode Solved",
-                valA: memberA.leetcode.totalSolved,
-                valB: memberB.leetcode.totalSolved,
+                valA: memberA.leetcode?.totalSolved || 0,
+                valB: memberB.leetcode?.totalSolved || 0,
                 unit: "problems",
               },
               {
                 label: "GitHub Contributions",
-                valA: memberA.github.totalContributionsYear,
-                valB: memberB.github.totalContributionsYear,
+                valA: memberA.github?.totalContributionsYear || memberA.github?.totalContributions || 0,
+                valB: memberB.github?.totalContributionsYear || memberB.github?.totalContributions || 0,
                 unit: "commits",
               },
               {
                 label: "Consistency Score",
-                valA: memberA.consistencyScore,
-                valB: memberB.consistencyScore,
+                valA: memberA.consistencyScore || 0,
+                valB: memberB.consistencyScore || 0,
                 unit: "/ 100",
               },
-            ] as const
+            ]
           ).map((stat) => {
             const total = stat.valA + stat.valB || 1;
             const pctA = Math.round((stat.valA / total) * 100);
@@ -444,6 +604,63 @@ export default function FriendsPage() {
               </div>
             );
           })}
+
+          {/* Focus Music Taste & Live Soundtrack Comparison */}
+          <div className="p-4 rounded-xl bg-[#161618] border border-white/10 space-y-3 mt-6">
+            <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Disc3 className="w-3.5 h-3.5 text-[#1DB954]" />
+                Focus Soundtrack & Vibe Comparison
+              </span>
+              <span className="text-[10px] text-zinc-500 font-mono">Spotify Live</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              {/* Member A Vibe */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                  {(memberA.displayName || "Member").split(" ")[0]}&apos;s Focus Beat
+                </div>
+                <div className="text-xs font-semibold text-white truncate">
+                  {presences[effectiveAId]?.track?.title || "Ambient Silence"}
+                </div>
+                <div className="text-[10px] text-zinc-400">
+                  Genre: {presences[effectiveAId]?.track?.genre || "Deep Focus"}
+                </div>
+                {presences[effectiveAId]?.track && effectiveAId !== currentUser?.id && (
+                  <button
+                    onClick={() => tuneInToMember(effectiveAId)}
+                    className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Headphones className="w-2.5 h-2.5" />
+                    Tune In to {(memberA.displayName || "Member").split(" ")[0]}
+                  </button>
+                )}
+              </div>
+
+              {/* Member B Vibe */}
+              <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2 text-right">
+                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                  {(memberB.displayName || "Member").split(" ")[0]}&apos;s Focus Beat
+                </div>
+                <div className="text-xs font-semibold text-white truncate">
+                  {presences[effectiveBId]?.track?.title || "Ambient Silence"}
+                </div>
+                <div className="text-[10px] text-zinc-400">
+                  Genre: {presences[effectiveBId]?.track?.genre || "Deep Focus"}
+                </div>
+                {presences[effectiveBId]?.track && effectiveBId !== currentUser?.id && (
+                  <button
+                    onClick={() => tuneInToMember(effectiveBId)}
+                    className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Headphones className="w-2.5 h-2.5" />
+                    Tune In to {(memberB.displayName || "Member").split(" ")[0]}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -47,6 +47,39 @@ export interface UserStreak {
   lastActiveDate: string;
 }
 
+export interface GitHubStats {
+  username: string;
+  publicRepos?: number;
+  followers?: number;
+  totalContributions?: number;
+  totalContributionsYear?: number;
+  currentStreak?: number;
+  contributionsByWeek?: number[][];
+  recentCommits?: Array<{
+    repo: string;
+    message: string;
+    timestamp: string;
+  }>;
+  avatarUrl?: string;
+  lastUpdated?: string;
+}
+
+export interface LeetCodeStats {
+  username: string;
+  totalSolved: number;
+  easy: number;
+  medium: number;
+  hard: number;
+  ranking: number;
+  acceptanceRate?: number;
+  recentSubmissions?: Array<{
+    title: string;
+    difficulty: string;
+    timestamp: string;
+  }>;
+  lastUpdated?: string;
+}
+
 export interface UserProfile {
   id: string;
   displayName: string;
@@ -57,6 +90,9 @@ export interface UserProfile {
   bio?: string;
   githubUsername?: string;
   leetcodeUsername?: string;
+  githubStats?: GitHubStats;
+  leetcodeStats?: LeetCodeStats;
+  lastSyncedAt?: string;
   totalXP: number;
   level: number;
   streak: UserStreak;
@@ -183,31 +219,6 @@ export interface NotificationPreference {
   browserPush: boolean;
 }
 
-export interface LeetCodeStats {
-  username: string;
-  totalSolved: number;
-  easy: number;
-  medium: number;
-  hard: number;
-  ranking: number;
-  recentSubmissions: {
-    title: string;
-    timestamp: string;
-    difficulty: "Easy" | "Medium" | "Hard";
-  }[];
-}
-
-export interface GitHubStats {
-  username: string;
-  totalContributionsYear: number;
-  currentStreak: number;
-  contributionsByWeek: number[][]; // 52 weeks x 7 days count
-  recentCommits: {
-    repo: string;
-    message: string;
-    timestamp: string;
-  }[];
-}
 
 export interface MemberAnalytics {
   userId: string;
@@ -227,4 +238,48 @@ export interface MemberAnalytics {
   github: GitHubStats;
   xpHistory7Days: { date: string; xp: number; tasks: number }[];
   xpHistory30Days: { date: string; xp: number }[];
+}
+
+export interface SpotifyTrack {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  albumArt: string;
+  spotifyUrl: string;
+  embedUri: string;
+  durationMs?: number;
+  genre?: string;
+}
+
+export interface UserMusicPresence {
+  userId: string;
+  isPlaying: boolean;
+  track: SpotifyTrack | null;
+  progressMs: number;
+  listeningWithUserId?: string | null;
+  lastUpdated: string;
+}
+
+export interface FocusStation {
+  id: string;
+  title: string;
+  description: string;
+  genre: string;
+  coverArt: string;
+  track: SpotifyTrack;
+}
+
+export interface FocusRoom {
+  meetUrl: string;
+  activeMemberIds: string[];
+  isGroupListening: boolean;
+  hostTrack: SpotifyTrack | null;
+  pomodoro: {
+    isActive: boolean;
+    mode: "focus" | "break";
+    timeLeftSeconds: number;
+    durationSeconds: number;
+    sessionsCompleted: number;
+  };
 }

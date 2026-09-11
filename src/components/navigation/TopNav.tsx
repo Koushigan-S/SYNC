@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSync } from "@/context/SyncContext";
+import { useMusicMeet } from "@/context/MusicMeetContext";
 import {
   Bell,
   Code2,
@@ -13,6 +14,8 @@ import {
   Sparkles,
   Plus,
   Compass,
+  LogOut,
+  User,
 } from "lucide-react";
 
 interface TopNavProps {
@@ -33,10 +36,12 @@ export function TopNav({
     currentUser,
     currentGroup,
     allUsers,
-    switchUser,
+    logout,
     simulateCodingActivity,
     notifications,
   } = useSync();
+
+  const { focusRoom } = useMusicMeet();
 
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -48,6 +53,11 @@ export function TopNav({
     { label: "Friends", href: "/friends" },
     { label: "Analytics", href: "/analytics" },
     { label: "Challenges", href: "/challenges" },
+    {
+      label: "Focus Room",
+      href: "/room",
+      badge: focusRoom.activeMemberIds.length > 0 ? `${focusRoom.activeMemberIds.length}` : undefined,
+    },
   ];
 
   return (
@@ -81,13 +91,19 @@ export function TopNav({
               <Link
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium tracking-tight transition-colors ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium tracking-tight transition-colors flex items-center gap-1.5 ${
                   isActive
                     ? "text-white bg-white/10"
                     : "text-zinc-400 hover:text-white"
                 }`}
               >
-                {link.label}
+                <span>{link.label}</span>
+                {link.badge && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold border border-emerald-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    {link.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -171,40 +187,19 @@ export function TopNav({
                   <span>Push Git Commits (+6 XP)</span>
                 </button>
 
-                {/* Member Switcher */}
-                <div className="px-3 py-1 mt-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 border-t border-white/5 pt-2">
-                  Switch Member View
-                </div>
-                {Object.values(allUsers).map((u) => (
-                  <button
-                    key={u.id}
-                    onClick={() => {
-                      switchUser(u.id);
-                      setIsUserMenuOpen(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors ${
-                      u.id === currentUser.id
-                        ? "bg-white/10 text-white font-medium"
-                        : "text-zinc-400 hover:text-white hover:bg-white/5"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={u.photoURL}
-                        alt={u.displayName}
-                        className="w-5 h-5 rounded-full object-cover"
-                      />
-                      <span>{u.displayName}</span>
-                    </div>
-                    <span className="text-[10px] text-zinc-500 font-mono">
-                      Lvl {u.level}
-                    </span>
-                  </button>
-                ))}
-
                 {/* Settings & Tour */}
-                <div className="border-t border-white/5 mt-2 pt-1.5">
+                <div className="border-t border-white/5 mt-2 pt-1.5 space-y-1">
+                  <div className="px-3 py-1 text-[11px] text-zinc-500 truncate">
+                    {currentUser.email}
+                  </div>
+                  <Link
+                    href="/profile"
+                    onClick={() => setIsUserMenuOpen(false)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 transition-colors"
+                  >
+                    <User className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Profile & Stats Sync</span>
+                  </Link>
                   <button
                     onClick={() => {
                       onOpenOnboarding();
@@ -224,6 +219,16 @@ export function TopNav({
                   >
                     <Users className="w-3.5 h-3.5" />
                     <span>Squad Settings</span>
+                  </button>
+                  <button
+                    onClick={async () => {
+                      setIsUserMenuOpen(false);
+                      await logout();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>

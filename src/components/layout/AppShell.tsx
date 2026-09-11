@@ -9,12 +9,55 @@ import { NotificationDrawer } from "@/components/notifications/NotificationDrawe
 import { OnboardingModal } from "@/components/onboarding/OnboardingModal";
 import { GroupSettingsModal } from "@/components/group/GroupSettingsModal";
 import { InitialLoader } from "@/components/ui/InitialLoader";
+import { MusicMeetDock } from "@/components/music/MusicMeetDock";
+import { GoogleAuthView } from "@/components/auth/GoogleAuthView";
+import { useSync } from "@/context/SyncContext";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const { currentUser, authLoading } = useSync();
   const [isTaskModalOpen, setIsTaskModalOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isGroupSettingsOpen, setIsGroupSettingsOpen] = useState(false);
+
+  // If Firebase auth is initializing
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white space-y-4">
+        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center font-bold text-black text-xl tracking-tight animate-pulse shadow-2xl">
+          S
+        </div>
+        <div className="text-xs text-zinc-400 font-mono flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+          Connecting to SYNC...
+        </div>
+        <ToastContainer />
+      </div>
+    );
+  }
+
+  // If user is not authenticated with Google, show GoogleAuthView only
+  if (!currentUser || currentUser.id === "guest") {
+    return (
+      <div className="min-h-screen flex flex-col bg-black text-white selection:bg-white/20 selection:text-white">
+        <header className="w-full glass-header py-4 px-6 border-b border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center font-bold text-black text-xs">
+              S
+            </div>
+            <span className="font-semibold tracking-wider text-sm text-white">SYNC</span>
+          </div>
+          <span className="text-xs text-zinc-400 font-mono">Private Network</span>
+        </header>
+
+        <main className="flex-1 flex items-center justify-center">
+          <GoogleAuthView />
+        </main>
+
+        <ToastContainer />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-black text-white selection:bg-white/20 selection:text-white">
@@ -30,9 +73,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
 
       {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 md:pb-12">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-36 md:pb-28">
         {children}
       </main>
+
+      {/* Floating Spotify & Google Meet Lounge Dock */}
+      <MusicMeetDock />
 
       {/* Mobile Bottom Dock Navigation */}
       <BottomNav />

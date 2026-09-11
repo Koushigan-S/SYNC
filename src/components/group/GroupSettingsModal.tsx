@@ -39,10 +39,10 @@ export function GroupSettingsModal({ isOpen, onClose }: GroupSettingsModalProps)
     });
   };
 
-  const handleJoin = (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!joinCodeInput.trim()) return;
-    const res = joinGroupWithCode(joinCodeInput.trim());
+    const res = await joinGroupWithCode(joinCodeInput.trim());
     if (res.success) {
       addToast({
         title: "Joined Squad",

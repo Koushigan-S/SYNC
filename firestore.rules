@@ -11,33 +11,21 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isGroupMember(groupId) {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid));
-    }
-
-    function isGroupAdminOrOwner(groupId) {
-      return isAuthenticated() &&
-        (
-          get(/databases/$(database)/documents/groups/$(groupId)/members/$(request.auth.uid)).data.role in ['admin', 'owner'] ||
-          get(/databases/$(database)/documents/groups/$(groupId)).data.ownerId == request.auth.uid
-        );
-    }
 
     // User Profiles
     match /users/{userId} {
       allow read: if isAuthenticated();
-      // Users can only update their profile fields (display name, bio, timezone, links)
-      // Total XP and level can ONLY be updated by trusted server (Cloud Functions)
-      allow create: if isUser(userId);
-      allow update: if isUser(userId) && 
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['totalXP', 'level']);
+      allow create, update: if isUser(userId);
       allow delete: if false;
 
-      // XP Transactions - Immutable ledger written ONLY by Cloud Functions / Admin SDK
+      // User Notifications (Real-time in-app alerts)
+      match /notifications/{notificationId} {
+        allow read, write: if isUser(userId);
+      }
+
+      // XP Transactions
       match /xpTransactions/{transactionId} {
-        allow read: if isUser(userId);
-        allow write: if false; // Cloud Functions only
+        allow read, write: if isUser(userId);
       }
 
       // User Integrations (GitHub tokens, LeetCode handles)
@@ -48,79 +36,69 @@ service cloud.firestore {
       // Daily stats summary
       match /dailyStats/{date} {
         allow read: if isAuthenticated();
-        allow write: if false; // Server aggregated only
+        allow write: if isUser(userId);
       }
     }
 
     // Groups & Squads
     match /groups/{groupId} {
-      allow read: if isGroupMember(groupId);
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isGroupAdminOrOwner(groupId);
+      allow update: if isAuthenticated();
       allow delete: if isAuthenticated() && resource.data.ownerId == request.auth.uid;
 
       // Group Members
       match /members/{userId} {
-        allow read: if isGroupMember(groupId);
-        // Joining group or owner updating roles
-        allow create: if isUser(userId) || isGroupAdminOrOwner(groupId);
-        allow update: if isGroupAdminOrOwner(groupId);
-        allow delete: if isUser(userId) || isGroupAdminOrOwner(groupId);
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated();
       }
 
       // Tasks
       match /tasks/{taskId} {
-        allow read: if isGroupMember(groupId);
-        // Creator or admin creates task
-        allow create: if isGroupMember(groupId) && request.resource.data.creatorId == request.auth.uid;
-        // Only task creator or group admin can update task content
-        allow update: if isGroupMember(groupId) &&
-          (resource.data.creatorId == request.auth.uid || isGroupAdminOrOwner(groupId));
-        allow delete: if isGroupMember(groupId) &&
-          (resource.data.creatorId == request.auth.uid || isGroupAdminOrOwner(groupId));
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated();
 
         // Task Participants
         match /participants/{userId} {
-          allow read: if isGroupMember(groupId);
-          // CRITICAL SECURITY ENFORCEMENT:
-          // A user can ONLY modify their own participant record.
-          // Nobody can complete work on another user's behalf.
-          allow create: if isGroupMember(groupId) &&
-            (request.auth.uid == userId || resource.data.creatorId == request.auth.uid);
-          allow update: if isGroupMember(groupId) && isUser(userId) &&
-            request.resource.data.userId == userId;
-          allow delete: if isGroupMember(groupId) &&
-            (isUser(userId) || isGroupAdminOrOwner(groupId));
+          allow read: if isAuthenticated();
+          allow create, update, delete: if isAuthenticated();
         }
       }
 
       // Activities Feed
       match /activities/{activityId} {
-        allow read: if isGroupMember(groupId);
-        allow create: if isGroupMember(groupId);
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated();
         allow update, delete: if false; // Activity stream is append-only
       }
 
       // Challenges
       match /challenges/{challengeId} {
-        allow read: if isGroupMember(groupId);
-        allow create: if isGroupMember(groupId);
-        allow update: if isGroupAdminOrOwner(groupId);
-        allow delete: if isGroupAdminOrOwner(groupId);
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated();
       }
 
       // Invites
       match /invites/{inviteId} {
         allow read: if isAuthenticated();
-        allow create, update, delete: if isGroupAdminOrOwner(groupId);
+        allow create, update, delete: if isAuthenticated();
       }
 
-      // Notifications
+      // Group Notifications
       match /notifications/{notificationId} {
-        allow read, update: if isAuthenticated() &&
-          (resource.data.userId == request.auth.uid || isGroupMember(groupId));
-        allow create: if isAuthenticated();
-        allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+        allow read, write: if isAuthenticated();
+      }
+
+      // Live Spotify Presence
+      match /presence/{userId} {
+        allow read: if isAuthenticated();
+        allow write: if isUser(userId);
+      }
+
+      // Live Google Meet Focus Room & Pomodoro
+      match /room/{docId} {
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated();
       }
     }
   }

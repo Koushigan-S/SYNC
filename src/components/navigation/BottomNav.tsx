@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Calendar, Trophy, Users, BarChart3, Video, User } from "lucide-react";
+import { Home, Calendar, Trophy, Users, BarChart3, Video, Settings } from "lucide-react";
 
 export function BottomNav() {
   const pathname = usePathname();
@@ -13,7 +13,7 @@ export function BottomNav() {
     { label: "Schedule", href: "/schedule", icon: Calendar },
     { label: "Room", href: "/room", icon: Video },
     { label: "Friends", href: "/friends", icon: Users },
-    { label: "Profile", href: "/profile", icon: User },
+    { label: "Settings", href: "/settings", icon: Settings },
   ];
 
   return (

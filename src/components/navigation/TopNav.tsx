@@ -16,6 +16,7 @@ import {
   Compass,
   LogOut,
   User,
+  Settings,
 } from "lucide-react";
 
 interface TopNavProps {
@@ -37,7 +38,6 @@ export function TopNav({
     currentGroup,
     allUsers,
     logout,
-    simulateCodingActivity,
     notifications,
   } = useSync();
 
@@ -58,6 +58,7 @@ export function TopNav({
       href: "/room",
       badge: focusRoom.activeMemberIds.length > 0 ? `${focusRoom.activeMemberIds.length}` : undefined,
     },
+    { label: "Settings", href: "/settings" },
   ];
 
   return (
@@ -162,43 +163,18 @@ export function TopNav({
                   </div>
                 </div>
 
-                {/* Quick Simulation Options */}
-                <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">
-                  Simulate Coding Activity
-                </div>
-                <button
-                  onClick={() => {
-                    simulateCodingActivity("leetcode_med");
-                    setIsUserMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-white/5 text-left transition-colors"
-                >
-                  <Code2 className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Solve LeetCode (+25 XP)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    simulateCodingActivity("github_push");
-                    setIsUserMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-white hover:bg-white/5 text-left transition-colors"
-                >
-                  <GitCommit className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Push Git Commits (+6 XP)</span>
-                </button>
-
                 {/* Settings & Tour */}
-                <div className="border-t border-white/5 mt-2 pt-1.5 space-y-1">
+                <div className="border-t border-white/5 mt-1 pt-1.5 space-y-1">
                   <div className="px-3 py-1 text-[11px] text-zinc-500 truncate">
                     {currentUser.email}
                   </div>
                   <Link
-                    href="/profile"
+                    href="/settings"
                     onClick={() => setIsUserMenuOpen(false)}
                     className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 transition-colors"
                   >
-                    <User className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Profile & Stats Sync</span>
+                    <Settings className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Settings & Profile</span>
                   </Link>
                   <button
                     onClick={() => {

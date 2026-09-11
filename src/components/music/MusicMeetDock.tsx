@@ -41,10 +41,13 @@ export function MusicMeetDock() {
     isSpotifyConfigured,
     volume,
     isMuted,
+    isBroadcasting,
     togglePlay,
     changeTrack,
     tuneInToMember,
     stopTuneIn,
+    goSolo,
+    toggleBroadcast,
     toggleDockExpanded,
     setDockExpanded,
     loadCustomTrack,
@@ -145,12 +148,28 @@ export function MusicMeetDock() {
 
                 <div className="flex items-center gap-2 text-[11px] text-zinc-400 truncate mt-0.5">
                   <span className="truncate">{currentTrack.artist}</span>
-                  {tunedInFriend && (
-                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
-                      <Headphones className="w-2.5 h-2.5" />
+                  {tunedInFriend ? (
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-medium">
+                      <Headphones className="w-2.5 h-2.5 animate-pulse text-emerald-400" />
                       <span>w/ {tunedInFriend.displayName.split(" ")[0]}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          goSolo();
+                        }}
+                        className="ml-1 text-[9px] text-zinc-400 hover:text-white underline font-semibold cursor-pointer"
+                        title="Leave synced stream and go solo"
+                      >
+                        Solo
+                      </button>
+                    </div>
+                  ) : isBroadcasting ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/30 font-medium">
+                      <Radio className="w-2.5 h-2.5 animate-pulse" />
+                      <span>DJing Jam</span>
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -160,7 +179,7 @@ export function MusicMeetDock() {
               {/* Play / Pause Toggle Button */}
               <button
                 onClick={togglePlay}
-                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white text-black hover:bg-zinc-200 flex items-center justify-center transition-all shadow-md active:scale-95"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white text-black hover:bg-zinc-200 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
                 title={isPlaying ? "Pause Focus Beats" : "Play Focus Beats"}
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
@@ -174,7 +193,7 @@ export function MusicMeetDock() {
               {/* Mute / Unmute Button */}
               <button
                 onClick={toggleMute}
-                className={`p-2 rounded-xl transition-colors border ${
+                className={`p-2 rounded-xl transition-colors border cursor-pointer ${
                   isMuted
                     ? "bg-red-500/20 text-red-400 border-red-500/30"
                     : "bg-white/5 hover:bg-white/10 border-white/10 text-zinc-400 hover:text-white"
@@ -189,70 +208,163 @@ export function MusicMeetDock() {
                 )}
               </button>
 
-              {/* Squad Audio Presence Flyout Toggle */}
+              {/* Squad Audio Presence & Jam Flyout Toggle */}
               <div className="relative">
                 <button
                   onClick={() => setShowSquadFlyout((prev) => !prev)}
-                  className={`p-2 rounded-xl transition-colors border flex items-center gap-1.5 ${
-                    squadPresences.length > 0
+                  className={`px-2.5 py-2 rounded-xl transition-all border flex items-center gap-1.5 cursor-pointer ${
+                    listeningWith
+                      ? "bg-emerald-500/20 hover:bg-emerald-500/30 border-emerald-500/40 text-emerald-300 shadow-sm"
+                      : isBroadcasting
+                      ? "bg-purple-500/20 hover:bg-purple-500/30 border-purple-500/40 text-purple-300"
+                      : squadPresences.length > 0
                       ? "bg-white/10 hover:bg-white/15 border-white/20 text-white"
                       : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-400"
                   }`}
-                  title="Squad Listening Presence"
+                  title="Squad Jams & Friends' Music"
                 >
-                  <Headphones className="w-4 h-4 text-[#1DB954]" />
+                  {/* Stacked Avatars */}
+                  {squadPresences.length > 0 && (
+                    <div className="flex -space-x-1.5 overflow-hidden mr-0.5">
+                      {squadPresences.slice(0, 3).map((p) => {
+                        const user = allUsers[p.userId];
+                        return (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            key={p.userId}
+                            src={user?.photoURL || (user as any)?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"}
+                            alt={user?.displayName || "Member"}
+                            className="w-4 h-4 rounded-full ring-1 ring-[#0d0d0f] object-cover"
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                  <Headphones className={`w-4 h-4 ${listeningWith ? "text-emerald-400" : "text-[#1DB954]"}`} />
                   <span className="text-xs font-mono font-medium hidden sm:inline">
-                    {squadPresences.length}
+                    {listeningWith
+                      ? "Synced"
+                      : squadPresences.length > 0
+                      ? `${squadPresences.length}`
+                      : "Jam"}
                   </span>
                 </button>
 
-                {/* Squad Listening Presence Popover */}
+                {/* Squad Listening Jams Popover */}
                 {showSquadFlyout && (
-                  <div className="absolute bottom-12 right-0 w-64 rounded-2xl bg-[#141416] border border-white/15 shadow-2xl p-3 space-y-2 z-50 animate-in fade-in duration-150">
-                    <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                      <span className="text-xs font-semibold text-white">Squad Beats</span>
-                      <button
-                        onClick={() => setShowSquadFlyout(false)}
-                        className="text-zinc-400 hover:text-white"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                  <div className="absolute bottom-12 right-0 w-80 sm:w-88 rounded-2xl bg-[#141416]/95 backdrop-blur-2xl border border-white/15 shadow-2xl p-3.5 space-y-3 z-50 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between pb-2 border-b border-white/10">
+                      <div className="flex items-center gap-1.5">
+                        <Headphones className="w-4 h-4 text-emerald-400" />
+                        <span className="text-xs font-semibold text-white">Squad Audio Jams</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={toggleBroadcast}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-colors flex items-center gap-1 cursor-pointer ${
+                            isBroadcasting
+                              ? "bg-purple-500 text-black border-purple-400"
+                              : "bg-white/10 hover:bg-white/20 border-white/15 text-white"
+                          }`}
+                          title="Broadcast your track to all squad members"
+                        >
+                          <Radio className="w-2.5 h-2.5" />
+                          <span>{isBroadcasting ? "Broadcasting" : "Start Jam"}</span>
+                        </button>
+                        <button
+                          onClick={() => setShowSquadFlyout(false)}
+                          className="text-zinc-400 hover:text-white p-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
+                    {/* Active Synced Banner */}
+                    {tunedInFriend && (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+                          <div className="truncate">
+                            <div className="text-[11px] text-emerald-300 font-semibold truncate">
+                              Listening with {tunedInFriend.displayName}
+                            </div>
+                            <div className="text-[10px] text-zinc-400 truncate">
+                              Auto-following: {currentTrack.title}
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={goSolo}
+                          className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black text-[10px] font-bold hover:bg-emerald-400 transition-colors shrink-0 cursor-pointer"
+                        >
+                          Go Solo
+                        </button>
+                      </div>
+                    )}
+
                     {squadPresences.length === 0 ? (
-                      <div className="text-[11px] text-zinc-500 py-3 text-center">
-                        No other squad members actively streaming music right now.
+                      <div className="text-[11px] text-zinc-500 py-4 text-center leading-relaxed">
+                        No other friends actively streaming music right now.
+                        <br />
+                        <span className="text-zinc-400">Click &ldquo;Start Jam&rdquo; above to invite your squad!</span>
                       </div>
                     ) : (
-                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                        <div className="text-[10px] uppercase font-semibold tracking-wider text-zinc-500 px-0.5">
+                          Teammates Online
+                        </div>
                         {squadPresences.map((p) => {
                           const user = allUsers[p.userId];
                           const isTune = listeningWith === p.userId;
                           return (
                             <div
                               key={p.userId}
-                              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-between gap-2 text-xs transition-colors"
+                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all ${
+                                isTune
+                                  ? "bg-emerald-500/10 border-emerald-500/30"
+                                  : "bg-white/5 hover:bg-white/10 border-white/5"
+                              }`}
                             >
-                              <div className="min-w-0">
-                                <div className="font-medium text-white truncate">
-                                  {user?.displayName || "Squad Member"}
-                                </div>
-                                <div className="text-[10px] text-zinc-400 truncate">
-                                  {p.track?.title}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={p.track?.albumArt || user?.photoURL || (user as any)?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"}
+                                  alt={p.track?.title || "Track"}
+                                  className="w-9 h-9 rounded-lg object-cover shrink-0 border border-white/10"
+                                />
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-xs text-white truncate flex items-center gap-1.5">
+                                    <span>{user?.displayName || "Squad Member"}</span>
+                                    {p.isBroadcasting && (
+                                      <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[9px] font-mono border border-purple-500/30">
+                                        DJ
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[11px] text-zinc-300 truncate">
+                                    {p.track?.title}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-500 truncate">
+                                    {p.track?.artist}
+                                  </div>
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() => {
-                                  if (isTune) stopTuneIn();
+                                  if (isTune) goSolo();
                                   else tuneInToMember(p.userId);
                                 }}
-                                className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors shrink-0 ${
+                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
                                   isTune
-                                    ? "bg-emerald-500 text-black"
-                                    : "bg-white/10 text-white hover:bg-white/20"
+                                    ? "bg-emerald-500 text-black shadow-sm"
+                                    : "bg-white/10 text-white hover:bg-white/20 border border-white/10 hover:border-white/20"
                                 }`}
                               >
-                                {isTune ? "Tuned" : "Tune In"}
+                                {isTune ? "✓ In Sync" : "🎧 Join In"}
                               </button>
                             </div>
                           );

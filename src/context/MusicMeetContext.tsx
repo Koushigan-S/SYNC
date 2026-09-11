@@ -39,12 +39,15 @@ interface MusicMeetContextType {
   isSpotifyConfigured: boolean;
   volume: number;
   isMuted: boolean;
+  isBroadcasting: boolean;
 
   // Actions
   togglePlay: () => void;
   changeTrack: (track: SpotifyTrack) => void;
   tuneInToMember: (userId: string) => void;
   stopTuneIn: () => void;
+  goSolo: () => void;
+  toggleBroadcast: () => void;
   joinFocusRoom: () => void;
   leaveFocusRoom: () => void;
   setMeetUrl: (url: string) => void;
@@ -68,6 +71,7 @@ const DEFAULT_FOCUS_ROOM: FocusRoom = {
   activeMemberIds: [],
   isGroupListening: false,
   hostTrack: CURATED_FOCUS_STATIONS[0].track,
+  hostUserId: null,
   pomodoro: {
     isActive: false,
     mode: "focus",
@@ -87,9 +91,34 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolumeState] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(false);
+  const [isBroadcasting, setIsBroadcasting] = useState<boolean>(false);
+  const [presences, setPresences] = useState<Record<string, UserMusicPresence>>({});
+  const [listeningWith, setListeningWith] = useState<string | null>(null);
+  const [focusRoom, setFocusRoom] = useState<FocusRoom>(DEFAULT_FOCUS_ROOM);
+  const [stations] = useState<FocusStation[]>(CURATED_FOCUS_STATIONS);
+  const [isDockExpanded, setIsDockExpanded] = useState<boolean>(false);
+  const [userMicEnabled, setUserMicEnabled] = useState<boolean>(false);
+  const [userVideoEnabled, setUserVideoEnabled] = useState<boolean>(true);
 
   // Persistent HTML5 audio player for instant audible focus sound
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Refs to avoid stale closures in Firestore real-time listeners
+  const currentTrackRef = useRef<SpotifyTrack>(currentTrack);
+  const isPlayingRef = useRef<boolean>(isPlaying);
+  const listeningWithRef = useRef<string | null>(listeningWith);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
+
+  useEffect(() => {
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
+
+  useEffect(() => {
+    listeningWithRef.current = listeningWith;
+  }, [listeningWith]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -105,15 +134,8 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       audioRef.current = null;
     };
   }, []);
-  const [presences, setPresences] = useState<Record<string, UserMusicPresence>>({});
-  const [listeningWith, setListeningWith] = useState<string | null>(null);
-  const [focusRoom, setFocusRoom] = useState<FocusRoom>(DEFAULT_FOCUS_ROOM);
-  const [stations] = useState<FocusStation[]>(CURATED_FOCUS_STATIONS);
-  const [isDockExpanded, setIsDockExpanded] = useState<boolean>(false);
-  const [userMicEnabled, setUserMicEnabled] = useState<boolean>(false);
-  const [userVideoEnabled, setUserVideoEnabled] = useState<boolean>(true);
 
-  // Subscribe to real-time Presences in Firestore
+  // Subscribe to real-time Presences in Firestore with reactive auto-follow
   useEffect(() => {
     if (!currentUser?.id || currentUser.id === "guest" || !currentGroup?.id) return;
     const presenceColl = collection(db, "groups", currentGroup.id, "presence");
@@ -125,13 +147,29 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           presMap[d.id] = d.data() as UserMusicPresence;
         });
         setPresences(presMap);
+
+        // Reactive follow: if we are listening with a teammate, synchronize to their track!
+        const targetHostId = listeningWithRef.current;
+        if (targetHostId && presMap[targetHostId]?.track) {
+          const hostTrack = presMap[targetHostId].track;
+          if (hostTrack && hostTrack.id !== currentTrackRef.current?.id) {
+            setCurrentTrack(hostTrack);
+            if (audioRef.current && isPlayingRef.current) {
+              const stream = hostTrack.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
+              if (stream && audioRef.current.src !== stream) {
+                audioRef.current.src = stream;
+                audioRef.current.play().catch(() => {});
+              }
+            }
+          }
+        }
       },
       (err) => console.error("Error subscribing to presence:", err)
     );
     return () => unsub();
   }, [currentUser?.id, currentGroup?.id]);
 
-  // Subscribe to real-time Focus Room state in Firestore
+  // Subscribe to real-time Focus Room state in Firestore with group sync
   useEffect(() => {
     if (!currentUser?.id || currentUser.id === "guest" || !currentGroup?.id) return;
     const roomRef = doc(db, "groups", currentGroup.id, "room", "focusRoom");
@@ -139,7 +177,29 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       roomRef,
       (snap) => {
         if (snap.exists()) {
-          setFocusRoom(snap.data() as FocusRoom);
+          const roomData = snap.data() as FocusRoom;
+          setFocusRoom(roomData);
+
+          // If room is group listening and user is active in room:
+          if (
+            roomData.isGroupListening &&
+            roomData.hostTrack &&
+            roomData.activeMemberIds.includes(currentUser.id) &&
+            !listeningWithRef.current
+          ) {
+            if (roomData.hostTrack.id !== currentTrackRef.current?.id) {
+              setCurrentTrack(roomData.hostTrack);
+              if (audioRef.current && isPlayingRef.current) {
+                const stream =
+                  roomData.hostTrack.streamUrl ||
+                  CURATED_FOCUS_STATIONS[0].track.streamUrl;
+                if (stream && audioRef.current.src !== stream) {
+                  audioRef.current.src = stream;
+                  audioRef.current.play().catch(() => {});
+                }
+              }
+            }
+          }
         } else {
           // Initialize in Firestore if doesn't exist
           setDoc(roomRef, cleanFirestoreData(DEFAULT_FOCUS_ROOM)).catch((e) =>
@@ -166,10 +226,15 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           albumArt: currentTrack.albumArt || "",
           spotifyUrl: currentTrack.spotifyUrl || "",
           embedUri: currentTrack.embedUri || "",
+          streamUrl: currentTrack.streamUrl || "",
           durationMs: currentTrack.durationMs || 0,
           genre: currentTrack.genre || "Focus",
         }
       : null;
+
+    const myListeners = Object.values(presences).filter(
+      (p) => p.listeningWithUserId === currentUser.id
+    );
 
     const presenceData: UserMusicPresence = cleanFirestoreData({
       userId: currentUser.id,
@@ -177,13 +242,23 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       track: cleanTrack,
       progressMs: 30000,
       listeningWithUserId: listeningWith ? listeningWith : null,
+      isBroadcasting: Boolean(isBroadcasting),
+      listenersCount: myListeners.length,
       lastUpdated: new Date().toISOString(),
     });
 
     setDoc(presenceRef, presenceData, { merge: true }).catch((err) =>
       console.error("Failed to update presence:", err)
     );
-  }, [currentUser?.id, currentGroup?.id, isPlaying, currentTrack, listeningWith]);
+  }, [
+    currentUser?.id,
+    currentGroup?.id,
+    isPlaying,
+    currentTrack,
+    listeningWith,
+    isBroadcasting,
+    presences,
+  ]);
 
   // Pomodoro countdown timer tick
   useEffect(() => {
@@ -381,12 +456,30 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     [presences, allUsers, addToast]
   );
 
-  const stopTuneIn = useCallback(() => {
+  const goSolo = useCallback(() => {
     setListeningWith(null);
     addToast({
       title: "🎧 Personal Listening Mode",
-      description: "You left the squad synchronized stream.",
+      description: "You left the synced stream and are now listening to your own focus beats.",
       type: "default",
+    });
+  }, [addToast]);
+
+  const stopTuneIn = useCallback(() => {
+    goSolo();
+  }, [goSolo]);
+
+  const toggleBroadcast = useCallback(() => {
+    setIsBroadcasting((prev) => {
+      const next = !prev;
+      addToast({
+        title: next ? "📢 Broadcasting Squad Jam!" : "Personal Stream Mode",
+        description: next
+          ? "Your focus track is broadcast to the squad. Teammates can join your vibe with 1 click."
+          : "You stopped broadcasting to the squad.",
+        type: next ? "success" : "default",
+      });
+      return next;
     });
   }, [addToast]);
 
@@ -458,30 +551,31 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const toggleGroupListening = useCallback(() => {
     if (!currentGroup?.id) return;
     const next = !focusRoom.isGroupListening;
-    setFocusRoom((prev) => ({
-      ...prev,
+    const nextRoom = {
+      ...focusRoom,
       isGroupListening: next,
-      hostTrack: next ? currentTrack : prev.hostTrack,
-    }));
+      hostTrack: next ? currentTrack : focusRoom.hostTrack,
+      hostUserId: next ? currentUser.id : null,
+    };
+    setFocusRoom(nextRoom);
 
     updateDoc(
       doc(db, "groups", currentGroup.id, "room", "focusRoom"),
       cleanFirestoreData({
         isGroupListening: next,
         hostTrack: next ? currentTrack : focusRoom.hostTrack,
+        hostUserId: next ? currentUser.id : null,
       })
     ).catch(() => {});
 
     addToast({
-      title: focusRoom.isGroupListening
-        ? "Squad Broadcast Mode Off"
-        : "🎧 Squad Listening Party Active!",
-      description: focusRoom.isGroupListening
-        ? "Squad members can now pick separate tracks."
-        : "Broadcasting your Spotify selection to the study room.",
-      type: "success",
+      title: next ? "🎧 Squad Broadcast Active" : "Solo Lounge Mode",
+      description: next
+        ? "Everyone active in the Focus Lounge will now hear this track in sync."
+        : "Members can now choose their own focus streams.",
+      type: next ? "success" : "default",
     });
-  }, [currentGroup?.id, focusRoom.isGroupListening, focusRoom.hostTrack, currentTrack, addToast]);
+  }, [currentGroup?.id, focusRoom, currentTrack, currentUser.id, addToast]);
 
   const togglePomodoro = useCallback(() => {
     if (!currentGroup?.id) return;
@@ -665,10 +759,13 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         isSpotifyConfigured,
         volume,
         isMuted,
+        isBroadcasting,
         togglePlay,
         changeTrack,
         tuneInToMember,
         stopTuneIn,
+        goSolo,
+        toggleBroadcast,
         joinFocusRoom,
         leaveFocusRoom,
         setMeetUrl,

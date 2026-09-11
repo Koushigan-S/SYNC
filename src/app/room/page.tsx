@@ -46,6 +46,7 @@ export default function FocusRoomPage() {
     changeTrack,
     tuneInToMember,
     stopTuneIn,
+    goSolo,
     joinFocusRoom,
     leaveFocusRoom,
     setMeetUrl,
@@ -414,25 +415,37 @@ export default function FocusRoomPage() {
                       </div>
                     )}
 
-                    {/* Tune In Button */}
+                    {/* Tune In / Squad Jam Action */}
                     {!isCurrentUser && presence?.track && (
-                      <div>
+                      <div className="flex items-center gap-1.5">
+                        {presence.listenersCount && presence.listenersCount > 0 ? (
+                          <span
+                            className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-full"
+                            title={`${presence.listenersCount} members listening together`}
+                          >
+                            👥 {presence.listenersCount}
+                          </span>
+                        ) : null}
+
                         {isTunedInToThisMember ? (
                           <button
-                            onClick={stopTuneIn}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold flex items-center gap-1"
-                            title="Click to leave sync"
+                            type="button"
+                            onClick={goSolo}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-400 transition-colors shadow-sm cursor-pointer"
+                            title="Click to leave sync and go solo"
                           >
                             <Check className="w-3 h-3" />
-                            Tuned In
+                            <span>In Sync</span>
                           </button>
                         ) : (
                           <button
+                            type="button"
                             onClick={() => tuneInToMember(member.userId)}
-                            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-medium transition-colors flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            title={`Join ${allUsers[member.userId]?.displayName || "Friend"}'s focus track`}
                           >
-                            <Headphones className="w-3 h-3" />
-                            Tune In
+                            <Headphones className="w-3 h-3 text-[#1DB954]" />
+                            <span>Join In</span>
                           </button>
                         )}
                       </div>
@@ -502,6 +515,21 @@ export default function FocusRoomPage() {
                 </button>
               </div>
             </div>
+
+            {/* Room Broadcast Stage Banner */}
+            {focusRoom.isGroupListening && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-emerald-300 font-semibold">
+                    Room Soundstage Active — Everyone in the Focus Lounge is listening in sync!
+                  </span>
+                </div>
+                <div className="text-[11px] text-emerald-400/80 font-mono">
+                  👥 {focusRoom.activeMemberIds.length} members in lounge
+                </div>
+              </div>
+            )}
 
             {/* Embedded Spotify Web Player */}
             <div className="rounded-2xl overflow-hidden bg-black/60 border border-white/10 shadow-xl">

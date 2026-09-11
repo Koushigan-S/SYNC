@@ -260,6 +260,8 @@ export interface UserMusicPresence {
   track: SpotifyTrack | null;
   progressMs: number;
   listeningWithUserId?: string | null;
+  isBroadcasting?: boolean;
+  listenersCount?: number;
   lastUpdated: string;
 }
 
@@ -277,6 +279,7 @@ export interface FocusRoom {
   activeMemberIds: string[];
   isGroupListening: boolean;
   hostTrack: SpotifyTrack | null;
+  hostUserId?: string | null;
   pomodoro: {
     isActive: boolean;
     mode: "focus" | "break";

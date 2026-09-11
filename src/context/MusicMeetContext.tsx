@@ -20,6 +20,10 @@ import { useSync } from "@/context/SyncContext";
 import { db } from "@/lib/firebase/config";
 import { collection, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import { cleanFirestoreData } from "@/lib/firebase/utils";
+import {
+  getSpotifyCredentials,
+  searchSpotify,
+} from "@/lib/services/spotify-service";
 
 interface MusicMeetContextType {
   currentTrack: SpotifyTrack;
@@ -31,6 +35,7 @@ interface MusicMeetContextType {
   isDockExpanded: boolean;
   userMicEnabled: boolean;
   userVideoEnabled: boolean;
+  isSpotifyConfigured: boolean;
 
   // Actions
   togglePlay: () => void;
@@ -48,6 +53,7 @@ interface MusicMeetContextType {
   toggleDockExpanded: () => void;
   setDockExpanded: (expanded: boolean) => void;
   loadCustomTrack: (urlOrUri: string) => boolean;
+  searchTracks: (query: string) => Promise<SpotifyTrack[]>;
 }
 
 const MusicMeetContext = createContext<MusicMeetContextType | null>(null);
@@ -513,6 +519,18 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     [addToast]
   );
 
+  const searchTracks = useCallback(async (query: string): Promise<SpotifyTrack[]> => {
+    return searchSpotify(query);
+  }, []);
+
+  const credentials = getSpotifyCredentials();
+  const isSpotifyConfigured = Boolean(
+    credentials.clientId &&
+    credentials.clientSecret &&
+    !credentials.clientId.includes("your_spotify") &&
+    !credentials.clientSecret.includes("your_spotify")
+  );
+
   return (
     <MusicMeetContext.Provider
       value={{
@@ -525,6 +543,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         isDockExpanded,
         userMicEnabled,
         userVideoEnabled,
+        isSpotifyConfigured,
         togglePlay,
         changeTrack,
         tuneInToMember,
@@ -540,6 +559,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         toggleDockExpanded,
         setDockExpanded,
         loadCustomTrack,
+        searchTracks,
       }}
     >
       {children}

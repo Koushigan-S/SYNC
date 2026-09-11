@@ -58,6 +58,62 @@ export default function DashboardPage() {
     (a, b) => (b.userSnapshot?.totalXP || 0) - (a.userSnapshot?.totalXP || 0)
   );
 
+  // User's rank in squad
+  const userRankIndex = sortedMembers.findIndex((m) => m.userId === currentUser.id);
+  const userRank = userRankIndex !== -1 ? userRankIndex + 1 : 1;
+  const userRankSubtitle =
+    members.length <= 1
+      ? "Solo sprint active"
+      : userRank === 1
+      ? "Leading the squad"
+      : `#${userRank} in squad standings`;
+
+  // Dynamically compute real completed tasks count
+  const squadCompletedTasks = tasks.filter((t) => {
+    const assignedParts = participants.filter((p) => p.taskId === t.id);
+    return assignedParts.length > 0 && assignedParts.every((p) => p.completed);
+  }).length;
+
+  const myCompletedTasks = participants.filter(
+    (p) => p.userId === currentUser.id && p.completed
+  ).length;
+
+  const tasksCount = members.length > 1 ? squadCompletedTasks : myCompletedTasks;
+  const subtitleText =
+    members.length > 1
+      ? tasksCount === 1
+        ? "Your squad has completed 1 shared task this week. Keep the momentum alive."
+        : `Your squad has completed ${tasksCount} shared tasks this week. Keep the momentum alive.`
+      : tasksCount === 1
+      ? "You have completed 1 task this week. Keep the momentum alive."
+      : `You have completed ${tasksCount} tasks this week. Keep the momentum alive.`;
+
+  // Dynamic Weekly XP calculation for current user
+  const userWeeklyXP =
+    userAnalytics?.weeklyXP ||
+    userAnalytics?.xpHistory7Days?.reduce((acc, curr) => acc + curr.xp, 0) ||
+    Math.round(currentUser.totalXP * 0.25);
+
+  // Dynamic Top Performer / Most Improved Member
+  const membersWithGains = members
+    .map((m) => {
+      const uAnalytics = analytics[m.userId];
+      const gain =
+        m.userSnapshot?.weeklyXP ??
+        uAnalytics?.weeklyXP ??
+        (uAnalytics?.xpHistory7Days?.reduce((acc, curr) => acc + curr.xp, 0) || 0);
+      return {
+        userId: m.userId,
+        displayName: m.userSnapshot?.displayName || uAnalytics?.displayName || "Member",
+        weeklyXP: gain,
+        streak: m.userSnapshot?.streak || uAnalytics?.streak || 1,
+      };
+    })
+    .sort((a, b) => b.weeklyXP - a.weeklyXP);
+
+  const topPerformer = membersWithGains[0];
+  const hasMultipleMembers = members.length > 1;
+
   const filteredActivities = activities.filter((act) => {
     if (activityFilter === "tasks") {
       return (
@@ -92,22 +148,32 @@ export default function DashboardPage() {
             {greeting}, {currentUser.displayName.split(" ")[0]}.
           </h1>
           <p className="text-sm text-zinc-400 mt-1">
-            Your squad has completed 14 shared tasks this week. Keep the momentum alive.
+            {subtitleText}
           </p>
         </div>
 
-        {/* Most Improved Member Callout */}
+        {/* Dynamic Performer / Momentum Callout */}
         <div className="flex items-center gap-3 p-3 px-4 rounded-2xl bg-[#141416] border border-white/[0.09] self-start md:self-auto">
           <div className="w-8 h-8 rounded-xl bg-amber-400/10 border border-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
             <Zap className="w-4 h-4" />
           </div>
           <div>
             <div className="text-[11px] text-zinc-500 uppercase tracking-wider font-semibold">
-              Most Improved this week
+              {hasMultipleMembers && topPerformer?.weeklyXP > 0
+                ? "Top Performer this week"
+                : "Current Momentum"}
             </div>
             <div className="text-xs font-medium text-white flex items-center gap-1.5 mt-0.5">
-              <span>Arun Patel</span>
-              <span className="text-emerald-400 font-mono text-[11px]">(+38% XP)</span>
+              <span>
+                {hasMultipleMembers && topPerformer?.weeklyXP > 0
+                  ? topPerformer.displayName
+                  : currentUser.displayName.split(" ")[0]}
+              </span>
+              <span className="text-emerald-400 font-mono text-[11px]">
+                {hasMultipleMembers && topPerformer?.weeklyXP > 0
+                  ? `(+${topPerformer.weeklyXP.toLocaleString()} XP)`
+                  : `(${currentUser.streak.current}d streak • ${currentUser.totalXP.toLocaleString()} XP)`}
+              </span>
             </div>
           </div>
         </div>
@@ -127,7 +193,7 @@ export default function DashboardPage() {
             </div>
             <div className="flex items-center gap-1 text-[11px] text-emerald-400 mt-1">
               <TrendingUp className="w-3 h-3" />
-              <span>+510 XP this week</span>
+              <span>+{userWeeklyXP.toLocaleString()} XP this week</span>
             </div>
           </div>
         </TiltCard>
@@ -166,13 +232,13 @@ export default function DashboardPage() {
           </div>
           <div className="mt-4">
             <div className="text-2xl sm:text-3xl font-semibold tracking-tight text-white font-mono">
-              #1{" "}
+              #{userRank}{" "}
               <span className="text-xs font-normal text-zinc-500">
                 of {members.length}
               </span>
             </div>
             <div className="text-[11px] text-zinc-400 mt-1">
-              +1 spot climbed this week
+              {userRankSubtitle}
             </div>
           </div>
         </TiltCard>

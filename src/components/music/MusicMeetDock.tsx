@@ -22,6 +22,8 @@ import {
   Flame,
   Music2,
   X,
+  Search,
+  Loader2,
 } from "lucide-react";
 
 export function MusicMeetDock() {
@@ -35,6 +37,7 @@ export function MusicMeetDock() {
     focusRoom,
     stations,
     isDockExpanded,
+    isSpotifyConfigured,
     togglePlay,
     changeTrack,
     tuneInToMember,
@@ -42,11 +45,16 @@ export function MusicMeetDock() {
     toggleDockExpanded,
     setDockExpanded,
     loadCustomTrack,
+    searchTracks,
     toggleGroupListening,
   } = useMusicMeet();
 
   const [customInput, setCustomInput] = useState("");
   const [showSquadFlyout, setShowSquadFlyout] = useState(false);
+  const [dockTab, setDockTab] = useState<"stations" | "search" | "url">("stations");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Active friends presence (excluding current user or showing everyone)
   const squadPresences = Object.values(presences).filter(
@@ -64,6 +72,21 @@ export function MusicMeetDock() {
     if (customInput.trim()) {
       const ok = loadCustomTrack(customInput);
       if (ok) setCustomInput("");
+    }
+  };
+
+  const handleSearch = async (e?: React.FormEvent, directQuery?: string) => {
+    if (e) e.preventDefault();
+    const q = directQuery || searchQuery;
+    if (!q.trim()) return;
+    setIsSearching(true);
+    try {
+      const results = await searchTracks(q);
+      setSearchResults(results);
+    } catch (err) {
+      console.error("Spotify search error:", err);
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -119,164 +142,122 @@ export function MusicMeetDock() {
                 <div className="flex items-center gap-2 text-[11px] text-zinc-400 truncate mt-0.5">
                   <span className="truncate">{currentTrack.artist}</span>
                   {tunedInFriend && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[10px] font-medium shrink-0">
+                    <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-medium">
                       <Headphones className="w-2.5 h-2.5" />
-                      With {tunedInFriend.displayName.split(" ")[0]}
+                      <span>w/ {tunedInFriend.displayName.split(" ")[0]}</span>
                     </span>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Center: Play/Pause Controls */}
-            <div className="hidden sm:flex items-center gap-2">
+            {/* Center / Right: Global Playback Controls */}
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              {/* Play / Pause Toggle Button */}
               <button
                 onClick={togglePlay}
-                className="w-9 h-9 rounded-full bg-white text-black hover:bg-zinc-200 flex items-center justify-center transition-transform hover:scale-105 shadow-md active:scale-95"
-                title={isPlaying ? "Pause Stream" : "Play Stream"}
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white text-black hover:bg-zinc-200 flex items-center justify-center transition-all shadow-md active:scale-95"
+                title={isPlaying ? "Pause Focus Beats" : "Resume Focus Beats"}
                 aria-label={isPlaying ? "Pause" : "Play"}
               >
                 {isPlaying ? (
                   <Pause className="w-4 h-4 fill-current" />
                 ) : (
-                  <Play className="w-4 h-4 fill-current translate-x-0.5" />
+                  <Play className="w-4 h-4 fill-current ml-0.5" />
                 )}
               </button>
 
-              {listeningWith && (
-                <button
-                  onClick={stopTuneIn}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] text-zinc-300 transition-colors border border-white/10"
-                  title="Disconnect sync and listen independently"
-                >
-                  Leave Sync
-                </button>
-              )}
-            </div>
-
-            {/* Right: Squad Listening Stack & Google Meet Launch */}
-            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-              {/* Squad Listeners Stack */}
+              {/* Squad Audio Presence Flyout Toggle */}
               <div className="relative">
                 <button
-                  onClick={() => setShowSquadFlyout(!showSquadFlyout)}
-                  className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs transition-colors"
-                  title="View what squad is listening to"
+                  onClick={() => setShowSquadFlyout((prev) => !prev)}
+                  className={`p-2 rounded-xl transition-colors border flex items-center gap-1.5 ${
+                    squadPresences.length > 0
+                      ? "bg-white/10 hover:bg-white/15 border-white/20 text-white"
+                      : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-400"
+                  }`}
+                  title="Squad Listening Presence"
                 >
-                  <div className="flex -space-x-2 overflow-hidden">
-                    {squadPresences.slice(0, 3).map((p) => {
-                      const u = allUsers[p.userId];
-                      if (!u) return null;
-                      return (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          key={p.userId}
-                          src={u.photoURL}
-                          alt={u.displayName}
-                          className="inline-block h-5 w-5 rounded-full ring-1 ring-black object-cover"
-                        />
-                      );
-                    })}
-                  </div>
-                  <Headphones className="w-3.5 h-3.5 text-zinc-400 ml-1" />
-                  <span className="hidden sm:inline text-[11px] text-zinc-300 font-medium">
-                    Squad Beats
+                  <Headphones className="w-4 h-4 text-[#1DB954]" />
+                  <span className="text-xs font-mono font-medium hidden sm:inline">
+                    {squadPresences.length}
                   </span>
                 </button>
 
-                {/* Squad Flyout Menu */}
+                {/* Squad Listening Presence Popover */}
                 {showSquadFlyout && (
-                  <div className="absolute right-0 bottom-full mb-3 w-72 rounded-2xl bg-[#161618] border border-white/15 p-3 shadow-2xl z-50 animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between pb-2 border-b border-white/10 mb-2">
-                      <span className="text-xs font-semibold text-white flex items-center gap-1.5">
-                        <Radio className="w-3.5 h-3.5 text-emerald-400" />
-                        Squad Live Listening
-                      </span>
+                  <div className="absolute bottom-12 right-0 w-64 rounded-2xl bg-[#141416] border border-white/15 shadow-2xl p-3 space-y-2 z-50 animate-in fade-in duration-150">
+                    <div className="flex items-center justify-between pb-1 border-b border-white/10">
+                      <span className="text-xs font-semibold text-white">Squad Beats</span>
                       <button
                         onClick={() => setShowSquadFlyout(false)}
-                        className="text-zinc-500 hover:text-white text-xs"
+                        className="text-zinc-400 hover:text-white"
                       >
-                        ✕
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    <div className="space-y-2">
-                      {squadPresences.map((p) => {
-                        const user = allUsers[p.userId];
-                        const isTunedIntoThis = listeningWith === p.userId;
-                        if (!user || !p.track) return null;
-
-                        return (
-                          <div
-                            key={p.userId}
-                            className="p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between gap-2 hover:bg-white/10 transition-colors"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={user.photoURL}
-                                alt={user.displayName}
-                                className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0"
-                              />
+                    {squadPresences.length === 0 ? (
+                      <div className="text-[11px] text-zinc-500 py-3 text-center">
+                        No other squad members actively streaming music right now.
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                        {squadPresences.map((p) => {
+                          const user = allUsers[p.userId];
+                          const isTune = listeningWith === p.userId;
+                          return (
+                            <div
+                              key={p.userId}
+                              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-between gap-2 text-xs transition-colors"
+                            >
                               <div className="min-w-0">
-                                <div className="text-xs font-semibold text-white truncate">
-                                  {user.displayName}
+                                <div className="font-medium text-white truncate">
+                                  {user?.displayName || "Squad Member"}
                                 </div>
-                                <div className="text-[10px] text-zinc-400 truncate flex items-center gap-1">
-                                  <span>{p.track.title}</span>
-                                  <span className="text-zinc-600">·</span>
-                                  <span>{p.track.artist}</span>
+                                <div className="text-[10px] text-zinc-400 truncate">
+                                  {p.track?.title}
                                 </div>
                               </div>
-                            </div>
-
-                            {isTunedIntoThis ? (
-                              <span className="text-[10px] text-emerald-400 font-semibold px-2 py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20 shrink-0 flex items-center gap-1">
-                                <Check className="w-2.5 h-2.5" /> Tuned
-                              </span>
-                            ) : (
                               <button
                                 onClick={() => {
-                                  tuneInToMember(p.userId);
-                                  setShowSquadFlyout(false);
+                                  if (isTune) stopTuneIn();
+                                  else tuneInToMember(p.userId);
                                 }}
-                                className="text-[10px] font-medium px-2 py-1 bg-white/10 hover:bg-white text-zinc-200 hover:text-black rounded-lg transition-colors shrink-0"
+                                className={`px-2 py-1 rounded-lg text-[10px] font-semibold transition-colors shrink-0 ${
+                                  isTune
+                                    ? "bg-emerald-500 text-black"
+                                    : "bg-white/10 text-white hover:bg-white/20"
+                                }`}
                               >
-                                Tune In
+                                {isTune ? "Tuned" : "Tune In"}
                               </button>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
 
-              {/* 1-Click Google Meet Launch Button */}
+              {/* Google Meet Lounge Quick Hop */}
               <button
                 onClick={handleLaunchMeet}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition-all hover:scale-[1.02] active:scale-95 shadow-sm"
-                title={`Launch Google Meet: ${focusRoom.meetUrl}`}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition-colors"
+                title="Hop into Google Meet Lounge"
               >
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
-                </span>
                 <Video className="w-3.5 h-3.5" />
-                <span className="font-mono text-[11px] hidden xs:inline">
-                  {focusRoom.activeMemberIds.length} in Meet
-                </span>
-                <ExternalLink className="w-3 h-3 opacity-70" />
+                <span className="hidden md:inline">Meet Lounge</span>
               </button>
 
-              {/* Co-working Room Link */}
+              {/* Focus Room Link */}
               <Link
                 href="/room"
-                className={`p-2 rounded-xl border text-xs transition-colors ${
+                className={`p-2 rounded-xl border transition-colors ${
                   pathname === "/room"
                     ? "bg-white text-black border-white"
-                    : "bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300 hover:text-white"
+                    : "bg-white/5 hover:bg-white/10 border-white/10 text-zinc-400 hover:text-white"
                 }`}
                 title="Go to Virtual Focus Room"
               >
@@ -304,59 +285,175 @@ export function MusicMeetDock() {
             <div className="mt-4 pt-4 border-t border-white/10 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
                 {/* Embedded Live Spotify Web Player */}
-                <div className="lg:col-span-7 rounded-xl overflow-hidden bg-black/50 border border-white/10 shadow-inner">
+                <div className="lg:col-span-6 rounded-xl overflow-hidden bg-black/50 border border-white/10 shadow-inner">
                   <iframe
                     title="Spotify Web Embed Player"
                     src={currentTrack.embedUri}
                     width="100%"
-                    height="152"
+                    height="160"
                     allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                     loading="lazy"
                     className="rounded-xl border-0"
                   />
                 </div>
 
-                {/* Focus Stations & Custom Link Controls */}
-                <div className="lg:col-span-5 flex flex-col justify-between space-y-3">
-                  {/* Curated Stations */}
-                  <div>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-1.5">
-                      Curated Focus Stations
-                    </span>
+                {/* Spotify Controls with Tabbed Modes */}
+                <div className="lg:col-span-6 flex flex-col justify-between space-y-2.5">
+                  {/* Mode Navigation Pills */}
+                  <div className="flex items-center gap-1 p-1 rounded-xl bg-black/40 border border-white/10 self-start">
+                    <button
+                      type="button"
+                      onClick={() => setDockTab("stations")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                        dockTab === "stations"
+                          ? "bg-white text-black font-semibold"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      Focus Stations
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDockTab("search")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${
+                        dockTab === "search"
+                          ? "bg-white text-black font-semibold"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      <Search className="w-3 h-3" />
+                      <span>Search API</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDockTab("url")}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                        dockTab === "url"
+                          ? "bg-white text-black font-semibold"
+                          : "text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      Paste Link
+                    </button>
+                  </div>
+
+                  {/* Mode 1: Curated Stations */}
+                  {dockTab === "stations" && (
                     <div className="grid grid-cols-2 gap-1.5">
-                      {stations.slice(0, 4).map((st) => (
+                      {stations.map((st) => (
                         <button
                           key={st.id}
                           onClick={() => changeTrack(st.track)}
-                          className={`px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors flex items-center gap-2 border ${
+                          className={`px-2.5 py-2 rounded-lg text-left text-xs transition-colors flex items-center gap-2 border ${
                             currentTrack.id === st.track.id
                               ? "bg-white/15 border-white/30 text-white font-medium"
                               : "bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
                           }`}
                         >
-                          <Disc3 className="w-3 h-3 text-[#1DB954] shrink-0" />
-                          <span className="truncate text-[11px]">{st.title.split(" ")[0]}</span>
+                          <Disc3 className="w-3.5 h-3.5 text-[#1DB954] shrink-0" />
+                          <div className="truncate min-w-0">
+                            <div className="truncate text-xs text-white">{st.title}</div>
+                            <div className="text-[10px] text-zinc-500 truncate">{st.genre}</div>
+                          </div>
                         </button>
                       ))}
                     </div>
-                  </div>
+                  )}
 
-                  {/* Custom Spotify URL Input */}
-                  <form onSubmit={handleCustomSubmit} className="flex gap-1.5">
-                    <input
-                      type="text"
-                      value={customInput}
-                      onChange={(e) => setCustomInput(e.target.value)}
-                      placeholder="Paste Spotify track/playlist URL..."
-                      className="flex-1 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 font-mono"
-                    />
-                    <button
-                      type="submit"
-                      className="px-3 py-1.5 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-colors shrink-0"
-                    >
-                      Load
-                    </button>
-                  </form>
+                  {/* Mode 2: Live Spotify Search */}
+                  {dockTab === "search" && (
+                    <div className="space-y-2">
+                      <form onSubmit={handleSearch} className="flex gap-1.5">
+                        <div className="relative flex-1">
+                          <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search track, artist, album..."
+                            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-white/30 font-sans"
+                          />
+                          <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5 pointer-events-none" />
+                        </div>
+                        <button
+                          type="submit"
+                          disabled={isSearching || !searchQuery.trim()}
+                          className="px-3 py-1.5 rounded-xl bg-[#1DB954] text-black hover:bg-[#1ed760] disabled:opacity-50 text-xs font-semibold transition-colors shrink-0 flex items-center gap-1"
+                        >
+                          {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : "Search"}
+                        </button>
+                      </form>
+
+                      {/* Quick Search Chips */}
+                      {searchResults.length === 0 && (
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {["Hans Zimmer", "Lofi Beats", "Synthwave", "Chopin", "Deep Focus"].map((tag) => (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => {
+                                setSearchQuery(tag);
+                                handleSearch(undefined, tag);
+                              }}
+                              className="px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-zinc-400 hover:text-white transition-colors"
+                            >
+                              {tag}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Search Results List */}
+                      {searchResults.length > 0 && (
+                        <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                          {searchResults.map((tr) => (
+                            <div
+                              key={tr.id}
+                              onClick={() => changeTrack(tr)}
+                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-between gap-2 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center gap-2 min-w-0">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={tr.albumArt}
+                                  alt={tr.title}
+                                  className="w-7 h-7 rounded object-cover shrink-0"
+                                />
+                                <div className="truncate min-w-0">
+                                  <div className="text-xs font-medium text-white truncate">{tr.title}</div>
+                                  <div className="text-[10px] text-zinc-400 truncate">{tr.artist}</div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-semibold shrink-0"
+                              >
+                                Play
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Mode 3: Custom Spotify URL Input */}
+                  {dockTab === "url" && (
+                    <form onSubmit={handleCustomSubmit} className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={customInput}
+                        onChange={(e) => setCustomInput(e.target.value)}
+                        placeholder="Paste Spotify track/playlist URL..."
+                        className="flex-1 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 font-mono"
+                      />
+                      <button
+                        type="submit"
+                        className="px-3 py-1.5 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-colors shrink-0"
+                      >
+                        Load
+                      </button>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>

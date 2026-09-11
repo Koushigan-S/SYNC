@@ -207,7 +207,7 @@ export function GroupSettingsModal({ isOpen, onClose }: GroupSettingsModalProps)
               onClick={() => {
                 addToast({
                   title: "Squad Status",
-                  description: "You are active in Founders Squad.",
+                  description: `You are active in ${currentGroup.name}.`,
                   type: "default",
                 });
                 onClose();

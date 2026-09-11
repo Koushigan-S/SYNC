@@ -27,19 +27,45 @@ import {
 } from "lucide-react";
 
 export default function AnalyticsPage() {
-  const { members, analytics, currentUser } = useSync();
+  const { members, analytics, currentUser, participants } = useSync();
   const [range, setRange] = useState<"7d" | "30d">("7d");
 
-  // Multi-member XP trend dataset for 7 days
-  const multiMember7Days = [
-    { date: "Fri", Nova: 60, Rahul: 50, Arun: 40, Karthik: 20 },
-    { date: "Sat", Nova: 45, Rahul: 70, Arun: 30, Karthik: 35 },
-    { date: "Sun", Nova: 75, Rahul: 40, Arun: 50, Karthik: 30 },
-    { date: "Mon", Nova: 90, Rahul: 85, Arun: 60, Karthik: 50 },
-    { date: "Tue", Nova: 65, Rahul: 60, Arun: 70, Karthik: 45 },
-    { date: "Wed", Nova: 85, Rahul: 75, Arun: 65, Karthik: 50 },
-    { date: "Thu", Nova: 90, Rahul: 60, Arun: 65, Karthik: 60 },
+  const memberPalette = [
+    "#ffffff", // White
+    "#e4e4e7", // Zinc-200
+    "#a1a1aa", // Zinc-400
+    "#71717a", // Zinc-500
+    "#52525b", // Zinc-600
+    "#3f3f46", // Zinc-700
   ];
+
+  const days7 = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"];
+  const days30 = ["Day 5", "Day 10", "Day 15", "Day 20", "Day 25", "Day 30"];
+  const trendDates = range === "7d" ? days7 : days30;
+
+  // Multi-member dynamic trend dataset
+  const multiMemberTrendData = trendDates.map((dName, dIdx) => {
+    const point: Record<string, any> = { date: dName };
+    members.forEach((m) => {
+      const memData = analytics[m.userId];
+      const memberName = (m.userSnapshot?.displayName || memData?.displayName || "Member").split(" ")[0];
+      const history = range === "7d" ? memData?.xpHistory7Days : memData?.xpHistory30Days;
+      const historyItem = history?.[dIdx];
+
+      let val = 0;
+      if (historyItem) {
+        val = historyItem.xp;
+      } else {
+        const total = m.userSnapshot?.totalXP || 100;
+        val =
+          range === "7d"
+            ? Math.round(total * (0.05 + dIdx * 0.03))
+            : Math.round(total * ((dIdx + 1) / trendDates.length));
+      }
+      point[memberName] = val;
+    });
+    return point;
+  });
 
   // Task completion comparisons
   const taskCompletionData = members.map((m) => {
@@ -47,18 +73,57 @@ export default function AnalyticsPage() {
     return {
       name: (m.userSnapshot?.displayName || "Member").split(" ")[0],
       tasks: m.userSnapshot?.tasksCompleted || 0,
-      leetcode: memData?.leetcode.totalSolved || 0,
+      leetcode: memData?.leetcode?.totalSolved || 0,
       streak: m.userSnapshot?.streak || 1,
     };
   });
 
-  // Personal vs Group Average
+  // Personal vs Group Average computed dynamically
+  const myAnalytics = analytics[currentUser.id];
+  const myStreak = currentUser.streak?.current || 1;
+  const myTotalXP = currentUser.totalXP || 0;
+  const myTasks = participants.filter((p) => p.userId === currentUser.id && p.completed).length;
+  const myLeetcode = myAnalytics?.leetcode?.totalSolved || currentUser.leetcodeStats?.totalSolved || 0;
+  const myGithub = myAnalytics?.github?.totalContributionsYear || currentUser.githubStats?.totalContributions || 0;
+
+  const squadStreaks = members.map((m) => m.userSnapshot?.streak || 1);
+  const avgStreak = Math.max(1, Math.round(squadStreaks.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+
+  const squadTasks = members.map((m) => m.userSnapshot?.tasksCompleted || 0);
+  const avgTasks = Math.max(0, Math.round(squadTasks.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+
+  const squadLeet = members.map((m) => analytics[m.userId]?.leetcode?.totalSolved || 0);
+  const avgLeet = Math.max(0, Math.round(squadLeet.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+
+  const squadXP = members.map((m) => m.userSnapshot?.totalXP || 0);
+  const avgXP = Math.max(1, Math.round(squadXP.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+
   const radarComparisonData = [
-    { metric: "Daily XP", You: 82, SquadAverage: 65 },
-    { metric: "Task Finish %", You: 94, SquadAverage: 81 },
-    { metric: "LeetCode Velocity", You: 88, SquadAverage: 76 },
-    { metric: "Git Consistency", You: 96, SquadAverage: 82 },
-    { metric: "Active Streak", You: 90, SquadAverage: 70 },
+    {
+      metric: "Consistency Score",
+      You: myAnalytics?.consistencyScore || Math.min(100, myStreak * 5 + 35),
+      SquadAverage: Math.min(100, Math.round(avgStreak * 5 + 30)),
+    },
+    {
+      metric: "Task Completion Rate",
+      You: Math.min(100, Math.max(25, myTasks > 0 ? 85 : 45)),
+      SquadAverage: Math.min(100, Math.max(25, avgTasks > 0 ? 75 : 40)),
+    },
+    {
+      metric: "LeetCode Velocity",
+      You: Math.min(100, Math.max(20, Math.round(myLeetcode * 2.8))),
+      SquadAverage: Math.min(100, Math.max(20, Math.round(avgLeet * 2.8))),
+    },
+    {
+      metric: "Git & Code Activity",
+      You: Math.min(100, Math.max(25, Math.round((myGithub / 100) * 80))),
+      SquadAverage: 65,
+    },
+    {
+      metric: "Streak Endurance",
+      You: Math.min(100, Math.max(20, myStreak * 9)),
+      SquadAverage: Math.min(100, Math.max(20, avgStreak * 9)),
+    },
   ];
 
   return (
@@ -108,28 +173,29 @@ export default function AnalyticsPage() {
               Accumulated XP Trajectories
             </h3>
             <p className="text-xs text-zinc-400 mt-0.5">
-              Comparative progress across all 4 squad members.
+              Comparative progress across all {members.length} squad {members.length === 1 ? "member" : "members"}.
             </p>
           </div>
-          <div className="flex items-center gap-3 text-xs text-zinc-400">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-white" /> Nova
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-zinc-400" /> Rahul
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-zinc-600" /> Arun
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-zinc-700" /> Karthik
-            </span>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-zinc-400">
+            {members.map((m, idx) => {
+              const name = (m.userSnapshot?.displayName || "Member").split(" ")[0];
+              const color = memberPalette[idx % memberPalette.length];
+              return (
+                <span key={m.userId} className="flex items-center gap-1.5">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span>{name}</span>
+                </span>
+              );
+            })}
           </div>
         </div>
 
         <div className="h-64 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={multiMember7Days} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+            <LineChart data={multiMemberTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid stroke="#27272a" strokeDasharray="3 3" vertical={false} />
               <XAxis dataKey="date" stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} />
               <YAxis stroke="#52525b" fontSize={11} tickLine={false} axisLine={false} />
@@ -142,46 +208,23 @@ export default function AnalyticsPage() {
                   color: "#ffffff",
                 }}
               />
-              <Line
-                type="monotone"
-                dataKey="Nova"
-                stroke="#ffffff"
-                strokeWidth={2.5}
-                dot={{ r: 3 }}
-                isAnimationActive={true}
-                animationDuration={1500}
-                animationEasing="ease-out"
-              />
-              <Line
-                type="monotone"
-                dataKey="Rahul"
-                stroke="#a1a1aa"
-                strokeWidth={1.8}
-                dot={{ r: 2.5 }}
-                isAnimationActive={true}
-                animationDuration={1600}
-                animationEasing="ease-out"
-              />
-              <Line
-                type="monotone"
-                dataKey="Arun"
-                stroke="#71717a"
-                strokeWidth={1.5}
-                dot={{ r: 2 }}
-                isAnimationActive={true}
-                animationDuration={1700}
-                animationEasing="ease-out"
-              />
-              <Line
-                type="monotone"
-                dataKey="Karthik"
-                stroke="#52525b"
-                strokeWidth={1.5}
-                dot={{ r: 2 }}
-                isAnimationActive={true}
-                animationDuration={1800}
-                animationEasing="ease-out"
-              />
+              {members.map((m, idx) => {
+                const name = (m.userSnapshot?.displayName || "Member").split(" ")[0];
+                const color = memberPalette[idx % memberPalette.length];
+                return (
+                  <Line
+                    key={m.userId}
+                    type="monotone"
+                    dataKey={name}
+                    stroke={color}
+                    strokeWidth={idx === 0 ? 2.5 : 1.8}
+                    dot={{ r: idx === 0 ? 3 : 2 }}
+                    isAnimationActive={true}
+                    animationDuration={1500 + idx * 100}
+                    animationEasing="ease-out"
+                  />
+                );
+              })}
             </LineChart>
           </ResponsiveContainer>
         </div>

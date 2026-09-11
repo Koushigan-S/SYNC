@@ -55,6 +55,7 @@ export interface GitHubStats {
   totalContributionsYear?: number;
   currentStreak?: number;
   contributionsByWeek?: number[][];
+  contributionsByYear?: Record<string, number>;
   recentCommits?: Array<{
     repo: string;
     message: string;

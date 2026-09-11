@@ -82,11 +82,14 @@ export function InitialLoader() {
                 initial={{ scale: 0.9, opacity: 0.8 }}
                 animate={{ scale: [0.9, 1.05, 0.9], opacity: [0.8, 1, 0.8] }}
                 transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#111111] border border-white/20 flex items-center justify-center shadow-2xl backdrop-blur-xl relative"
+                className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#111111] border border-white/20 flex items-center justify-center shadow-2xl backdrop-blur-xl relative overflow-hidden"
               >
-                <span className="text-2xl sm:text-3xl font-bold tracking-tight text-white font-mono">
-                  S
-                </span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/icon.png"
+                  alt="SYNC"
+                  className="w-14 h-14 sm:w-16 sm:h-16 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]"
+                />
                 <span className="absolute -bottom-1 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
               </motion.div>
             </div>

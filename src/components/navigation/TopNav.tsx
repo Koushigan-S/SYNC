@@ -66,10 +66,13 @@ export function TopNav({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-6">
         {/* Left: Brand & Squad Pill */}
         <div className="flex items-center gap-4">
-          <Link href="/" className="flex items-center gap-2 group">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center font-bold text-black text-xs tracking-tight transition-transform group-hover:scale-105 shadow-sm">
-              S
-            </div>
+          <Link href="/" className="flex items-center gap-2.5 group">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icon.png"
+              alt="SYNC"
+              className="w-7 h-7 rounded-lg object-contain transition-transform group-hover:scale-110 drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]"
+            />
             <span className="font-semibold tracking-wider text-sm text-white">
               SYNC
             </span>

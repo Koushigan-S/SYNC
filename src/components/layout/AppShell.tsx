@@ -24,8 +24,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (authLoading) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center font-bold text-black text-xl tracking-tight animate-pulse shadow-2xl">
-          S
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center animate-pulse">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/icon.png"
+            alt="SYNC"
+            className="w-14 h-14 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+          />
         </div>
         <div className="text-xs text-zinc-400 font-mono flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
@@ -41,10 +46,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen flex flex-col bg-black text-white selection:bg-white/20 selection:text-white">
         <header className="w-full glass-header py-4 px-6 border-b border-white/10 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-white flex items-center justify-center font-bold text-black text-xs">
-              S
-            </div>
+          <div className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/icon.png"
+              alt="SYNC"
+              className="w-7 h-7 rounded-lg object-contain drop-shadow-[0_0_10px_rgba(255,255,255,0.25)]"
+            />
             <span className="font-semibold tracking-wider text-sm text-white">SYNC</span>
           </div>
           <span className="text-xs text-zinc-400 font-mono">Private Network</span>

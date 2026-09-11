@@ -52,8 +52,13 @@ export function GoogleAuthView() {
         <div className="surface-card p-8 sm:p-10 border-white/15 backdrop-blur-2xl shadow-[0_24px_60px_rgba(0,0,0,0.8)] text-center space-y-7">
           {/* Logo & Brand Pill */}
           <div className="flex flex-col items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center font-bold text-black text-2xl tracking-tight shadow-xl">
-              S
+            <div className="w-20 h-20 rounded-2xl flex items-center justify-center">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icon.png"
+                alt="SYNC"
+                className="w-20 h-20 object-contain drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+              />
             </div>
             <div>
               <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 text-xs font-semibold mb-2">

@@ -97,8 +97,13 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
         {/* Step 1: Welcome */}
         {step === 1 && (
           <div className="py-6 text-center space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-white text-black font-bold text-2xl flex items-center justify-center mx-auto shadow-xl">
-              S
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/icon.png"
+                alt="SYNC"
+                className="w-16 h-16 object-contain drop-shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+              />
             </div>
             <div>
               <h2 className="text-2xl font-semibold tracking-tight text-white">

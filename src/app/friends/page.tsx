@@ -25,7 +25,7 @@ import { TiltCard } from "@/components/ui/TiltCard";
 
 export default function FriendsPage() {
   const { members, currentUser, analytics, allUsers } = useSync();
-  const { presences, tuneInToMember, listeningWith } = useMusicMeet();
+  const { presences, tuneInToMember, listeningWith, squadSongs } = useMusicMeet();
 
   // Head-to-head comparison member IDs
   const availableMemberIds = members.map((m) => m.userId);
@@ -118,6 +118,17 @@ export default function FriendsPage() {
               const isSelected = effectiveSelectedId === member.userId;
               const memAnalytic = analytics[member.userId];
               const musicPresence = presences[member.userId];
+              const isSquadTrack =
+                musicPresence?.track &&
+                !musicPresence.track.id.includes("station-lofi") &&
+                !musicPresence.track.title?.toLowerCase().includes("lofi") &&
+                !musicPresence.track.title?.toLowerCase().includes("snowfall") &&
+                squadSongs.some(
+                  (s) =>
+                    s.id === musicPresence.track?.id ||
+                    s.audioUrl === musicPresence.track?.audioUrl ||
+                    s.title.toLowerCase() === musicPresence.track?.title?.toLowerCase()
+                );
 
               return (
                 <TiltCard
@@ -168,8 +179,8 @@ export default function FriendsPage() {
                     </div>
                   </div>
 
-                {/* Live Music Pill */}
-                {musicPresence?.track && (
+                {/* Live Music Pill (Strictly Squad Library Songs) */}
+                {isSquadTrack && (
                   <div
                     className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs"
                     onClick={(e) => e.stopPropagation()}
@@ -181,7 +192,7 @@ export default function FriendsPage() {
                         <span className="w-0.5 bg-purple-400 rounded-full animate-eq-3" />
                       </span>
                       <span className="text-[11px] text-zinc-300 truncate font-medium">
-                        {musicPresence.track.title}
+                        {musicPresence?.track?.title}
                       </span>
                     </div>
 
@@ -247,7 +258,21 @@ export default function FriendsPage() {
             </div>
 
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              {presences[effectiveSelectedId]?.track && (
+              {(() => {
+                const selTrack = presences[effectiveSelectedId]?.track;
+                const isSelSquad =
+                  selTrack &&
+                  !selTrack.id.includes("station-lofi") &&
+                  !selTrack.title?.toLowerCase().includes("lofi") &&
+                  !selTrack.title?.toLowerCase().includes("snowfall") &&
+                  squadSongs.some(
+                    (s) =>
+                      s.id === selTrack.id ||
+                      s.audioUrl === selTrack.audioUrl ||
+                      s.title.toLowerCase() === selTrack.title?.toLowerCase()
+                  );
+                if (!isSelSquad) return null;
+                return (
                 <div className="p-2.5 rounded-xl bg-white/5 border border-white/10 flex items-center gap-2.5">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
@@ -274,7 +299,8 @@ export default function FriendsPage() {
                     </button>
                   )}
                 </div>
-              )}
+                );
+              })()}
 
               <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
                 <span className="text-[10px] text-zinc-500 uppercase tracking-wider block">
@@ -608,48 +634,69 @@ export default function FriendsPage() {
 
             <div className="grid grid-cols-2 gap-4 pt-1">
               {/* Member A Vibe */}
-              <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2">
-                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-                  {(memberA.displayName || "Member").split(" ")[0]}&apos;s Focus Beat
-                </div>
-                <div className="text-xs font-semibold text-white truncate">
-                  {presences[effectiveAId]?.track?.title || "Ambient Silence"}
-                </div>
-                <div className="text-[10px] text-zinc-400 truncate">
-                  By {presences[effectiveAId]?.track?.artist || "Squad Artist"}
-                </div>
-                {presences[effectiveAId]?.track && effectiveAId !== currentUser?.id && (
-                  <button
-                    onClick={() => tuneInToMember(effectiveAId)}
-                    className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Headphones className="w-2.5 h-2.5" />
-                    Tune In to {(memberA.displayName || "Member").split(" ")[0]}
-                  </button>
-                )}
-              </div>
+              {(() => {
+                const trackA = presences[effectiveAId]?.track;
+                const isSquadA =
+                  trackA &&
+                  !trackA.id.includes("station-lofi") &&
+                  !trackA.title?.toLowerCase().includes("lofi") &&
+                  !trackA.title?.toLowerCase().includes("snowfall") &&
+                  squadSongs.some((s) => s.id === trackA.id || s.audioUrl === trackA.audioUrl);
+                const trackB = presences[effectiveBId]?.track;
+                const isSquadB =
+                  trackB &&
+                  !trackB.id.includes("station-lofi") &&
+                  !trackB.title?.toLowerCase().includes("lofi") &&
+                  !trackB.title?.toLowerCase().includes("snowfall") &&
+                  squadSongs.some((s) => s.id === trackB.id || s.audioUrl === trackB.audioUrl);
 
-              {/* Member B Vibe */}
-              <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2 text-right">
-                <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
-                  {(memberB.displayName || "Member").split(" ")[0]}&apos;s Focus Beat
-                </div>
-                <div className="text-xs font-semibold text-white truncate">
-                  {presences[effectiveBId]?.track?.title || "Ambient Silence"}
-                </div>
-                <div className="text-[10px] text-zinc-400 truncate">
-                  By {presences[effectiveBId]?.track?.artist || "Squad Artist"}
-                </div>
-                {presences[effectiveBId]?.track && effectiveBId !== currentUser?.id && (
-                  <button
-                    onClick={() => tuneInToMember(effectiveBId)}
-                    className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-semibold transition-colors flex items-center justify-center gap-1"
-                  >
-                    <Headphones className="w-2.5 h-2.5" />
-                    Tune In to {(memberB.displayName || "Member").split(" ")[0]}
-                  </button>
-                )}
-              </div>
+                return (
+                  <>
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2">
+                      <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                        {(memberA.displayName || "Member").split(" ")[0]}&apos;s Focus Beat
+                      </div>
+                      <div className="text-xs font-semibold text-white truncate">
+                        {isSquadA ? trackA.title : "Ambient Silence"}
+                      </div>
+                      <div className="text-[10px] text-zinc-400 truncate">
+                        By {isSquadA ? trackA.artist : "Squad Library"}
+                      </div>
+                      {isSquadA && effectiveAId !== currentUser?.id && (
+                        <button
+                          onClick={() => tuneInToMember(effectiveAId)}
+                          className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Headphones className="w-2.5 h-2.5" />
+                          Tune In to {(memberA.displayName || "Member").split(" ")[0]}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Member B Vibe */}
+                    <div className="p-3 rounded-xl bg-white/5 border border-white/5 space-y-2 text-right">
+                      <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                        {(memberB.displayName || "Member").split(" ")[0]}&apos;s Focus Beat
+                      </div>
+                      <div className="text-xs font-semibold text-white truncate">
+                        {isSquadB ? trackB.title : "Ambient Silence"}
+                      </div>
+                      <div className="text-[10px] text-zinc-400 truncate">
+                        By {isSquadB ? trackB.artist : "Squad Library"}
+                      </div>
+                      {isSquadB && effectiveBId !== currentUser?.id && (
+                        <button
+                          onClick={() => tuneInToMember(effectiveBId)}
+                          className="w-full py-1.5 rounded-lg bg-white/10 hover:bg-white text-zinc-200 hover:text-black text-[10px] font-semibold transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                        >
+                          <Headphones className="w-2.5 h-2.5" />
+                          Tune In to {(memberB.displayName || "Member").split(" ")[0]}
+                        </button>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -25,6 +25,7 @@ import {
   onSnapshot,
   setDoc,
   updateDoc,
+  deleteDoc,
 } from "firebase/firestore";
 import { cleanFirestoreData } from "@/lib/firebase/utils";
 import {
@@ -150,12 +151,8 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     listeningWithRef.current = listeningWith;
   }, [listeningWith]);
 
-  // Combined track collection (squad custom songs are primary!)
-  const allAvailableTracks: SongTrack[] = squadSongs.length > 0
-    ? squadSongs
-    : currentTrack.id !== STANDBY_TRACK.id && currentTrack.audioUrl
-    ? [currentTrack]
-    : [];
+  // Combined track collection (strictly Squad Library songs)
+  const allAvailableTracks: SongTrack[] = squadSongs;
 
   // Initialize native HTML5 Audio element with event listeners
   useEffect(() => {
@@ -326,13 +323,25 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       (snap) => {
         const loaded: SongTrack[] = [];
         snap.forEach((d) => {
-          loaded.push({ id: d.id, ...d.data() } as SongTrack);
+          const song = { id: d.id, ...d.data() } as SongTrack;
+          // Filter out and clean up any stale lofi study session or demo tracks
+          if (
+            song.title?.toLowerCase().includes("lofi study") ||
+            song.title?.toLowerCase().includes("snowfall chillhop") ||
+            song.id === "track-station-lofi"
+          ) {
+            deleteDoc(doc(db, "groups", currentGroup.id, "songs", d.id)).catch(() => {});
+            return;
+          }
+          loaded.push(song);
         });
         setSquadSongs(loaded);
         if (
           loaded.length > 0 &&
           (!currentTrackRef.current ||
             currentTrackRef.current.id === STANDBY_TRACK.id ||
+            currentTrackRef.current.id === "track-station-lofi" ||
+            currentTrackRef.current.title?.toLowerCase().includes("lofi") ||
             !currentTrackRef.current.audioUrl)
         ) {
           setCurrentTrack(loaded[0]);
@@ -360,7 +369,24 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       (snap) => {
         const presMap: Record<string, UserMusicPresence> = {};
         snap.forEach((d) => {
-          presMap[d.id] = d.data() as UserMusicPresence;
+          const pres = d.data() as UserMusicPresence;
+          // Purge any stale lofi study session or non-squad demo track from all squad members' presences
+          if (
+            pres.track &&
+            (pres.track.id?.includes("station-lofi") ||
+              pres.track.title?.toLowerCase().includes("lofi") ||
+              pres.track.title?.toLowerCase().includes("snowfall") ||
+              pres.track.genre?.toLowerCase().includes("lofi"))
+          ) {
+            // Automatically clean up stale Firestore presence document
+            updateDoc(doc(db, "groups", currentGroup.id, "presence", d.id), {
+              track: null,
+              isPlaying: false,
+            }).catch(() => {});
+            pres.track = null;
+            pres.isPlaying = false;
+          }
+          presMap[d.id] = pres;
         });
 
         // Compute listenersCount dynamically
@@ -481,10 +507,17 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const cleanTrack: SongTrack | null = currentTrack
+    const hasValidTrack =
+      Boolean(currentTrack) &&
+      currentTrack.id !== STANDBY_TRACK.id &&
+      !currentTrack.id.includes("station-lofi") &&
+      !currentTrack.title?.toLowerCase().includes("lofi") &&
+      Boolean(currentTrack.audioUrl);
+
+    const cleanTrack: SongTrack | null = hasValidTrack
       ? {
           id: currentTrack.id,
-          title: currentTrack.title || "Focus Beats",
+          title: currentTrack.title || "Squad Audio",
           artist: currentTrack.artist || "Squad Music",
           album: currentTrack.album || "Squad Library",
           albumArt: currentTrack.albumArt || "",
@@ -492,7 +525,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           streamUrl: currentTrack.streamUrl || currentTrack.audioUrl || "",
           duration: currentTrack.duration || 180,
           durationMs: currentTrack.durationMs || (currentTrack.duration ? currentTrack.duration * 1000 : 180000),
-          genre: currentTrack.genre || "Focus",
+          genre: currentTrack.genre || "Squad Audio",
           addedBy: currentTrack.addedBy || undefined,
         }
       : null;
@@ -502,7 +535,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
 
     const presenceData: UserMusicPresence = cleanFirestoreData({
       userId: currentUser.id,
-      isPlaying: Boolean(isPlaying),
+      isPlaying: Boolean(hasValidTrack && isPlaying),
       track: cleanTrack,
       progressMs: currentSecs * 1000,
       currentTime: currentSecs,

@@ -298,6 +298,17 @@ export default function FocusRoomPage() {
                 member.userId
               );
               const presence = presences[member.userId];
+              const isSquadTrack =
+                presence?.track &&
+                !presence.track.id.includes("station-lofi") &&
+                !presence.track.title?.toLowerCase().includes("lofi") &&
+                !presence.track.title?.toLowerCase().includes("snowfall") &&
+                squadSongs.some(
+                  (s) =>
+                    s.id === presence.track?.id ||
+                    s.audioUrl === presence.track?.audioUrl ||
+                    s.title.toLowerCase() === presence.track?.title?.toLowerCase()
+                );
               const focusTask = getMemberFocusTask(member.userId);
               const isTunedInToThisMember = listeningWith === member.userId;
 
@@ -391,7 +402,7 @@ export default function FocusRoomPage() {
 
                   {/* Live Squad Track & Tune-In Action */}
                   <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
-                    {presence?.track ? (
+                    {isSquadTrack && presence?.track ? (
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         <div className="relative shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -423,7 +434,7 @@ export default function FocusRoomPage() {
                     )}
 
                     {/* Tune In / Squad Jam Action */}
-                    {!isCurrentUser && presence?.track && (
+                    {!isCurrentUser && isSquadTrack && presence?.track && (
                       <div className="flex items-center gap-1.5">
                         {presence.listenersCount && presence.listenersCount > 0 ? (
                           <span

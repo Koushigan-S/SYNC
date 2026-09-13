@@ -1045,32 +1045,34 @@ export default function SettingsPage() {
                 {/* Right 5 Cols: Curated Focus Stations & Audio Preferences */}
                 <div className="lg:col-span-5 space-y-6">
                   {/* Curated Stations */}
-                  <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-4">
-                    <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-zinc-400">
-                      Curated High-Yield Stations ({stations.length})
-                    </h3>
-                    <div className="space-y-2">
-                      {stations.map((st) => (
-                        <div
-                          key={st.id}
-                          onClick={() => changeTrack(st.track)}
-                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 cursor-pointer flex items-center justify-between text-xs"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-semibold text-white truncate">
-                              {st.title}
+                  {stations.length > 0 && (
+                    <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-4">
+                      <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-zinc-400">
+                        Curated High-Yield Stations ({stations.length})
+                      </h3>
+                      <div className="space-y-2">
+                        {stations.map((st) => (
+                          <div
+                            key={st.id}
+                            onClick={() => changeTrack(st.track)}
+                            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 cursor-pointer flex items-center justify-between text-xs"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold text-white truncate">
+                                {st.title}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 truncate">
+                                {st.genre}
+                              </div>
                             </div>
-                            <div className="text-[10px] text-zinc-400 truncate">
-                              {st.genre}
-                            </div>
+                            <span className="text-[10px] text-purple-400 font-mono shrink-0">
+                              Stream
+                            </span>
                           </div>
-                          <span className="text-[10px] text-purple-400 font-mono shrink-0">
-                            Stream
-                          </span>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Audio Preferences */}
                   <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-4">

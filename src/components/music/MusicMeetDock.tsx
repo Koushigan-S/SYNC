@@ -62,15 +62,24 @@ export function MusicMeetDock() {
     playPrevTrack,
   } = useMusicMeet();
 
-  const [customInput, setCustomInput] = useState("");
   const [showSquadFlyout, setShowSquadFlyout] = useState(false);
   const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
-  const [dockTab, setDockTab] = useState<"squad" | "stations" | "url">("squad");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Active friends presence (excluding current user or showing everyone)
+  // Active friends presence (strictly squad library songs, no lofi or arbitrary tracks)
   const squadPresences = Object.values(presences).filter(
-    (p) => p.userId !== currentUser.id && p.track
+    (p) =>
+      p.userId !== currentUser.id &&
+      p.track &&
+      !p.track.id.includes("station-lofi") &&
+      !p.track.title?.toLowerCase().includes("lofi") &&
+      !p.track.title?.toLowerCase().includes("snowfall") &&
+      squadSongs.some(
+        (s) =>
+          s.id === p.track?.id ||
+          s.audioUrl === p.track?.audioUrl ||
+          s.title.toLowerCase() === p.track?.title?.toLowerCase()
+      )
   );
 
   const tunedInFriend = listeningWith ? allUsers[listeningWith] : null;
@@ -79,13 +88,6 @@ export function MusicMeetDock() {
     window.open(focusRoom.meetUrl, "_blank", "noopener,noreferrer");
   };
 
-  const handleCustomSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (customInput.trim()) {
-      const ok = loadCustomTrack(customInput);
-      if (ok) setCustomInput("");
-    }
-  };
 
   const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
@@ -97,12 +99,6 @@ export function MusicMeetDock() {
     (s) =>
       s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.artist.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const filteredStations = stations.filter(
-    (st) =>
-      st.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      st.genre.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const effectiveDuration =
@@ -607,197 +603,101 @@ export function MusicMeetDock() {
 
                 {/* Track Selector & Squad Library Console */}
                 <div className="lg:col-span-7 flex flex-col justify-between space-y-2.5">
-                  {/* Tabs: Squad Songs vs Curated Stations vs Direct Link */}
+                  {/* Squad Library Header & Action */}
                   <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1 p-1 rounded-xl bg-black/40 border border-white/10">
-                      <button
-                        type="button"
-                        onClick={() => setDockTab("squad")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5 ${
-                          dockTab === "squad"
-                            ? "bg-purple-600 text-white font-semibold"
-                            : "text-zinc-400 hover:text-white"
-                        }`}
-                      >
-                        <Music2 className="w-3 h-3" />
-                        <span>Squad Songs</span>
-                        <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[9px]">
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-purple-600/20 border border-purple-500/30 text-purple-300 text-xs font-semibold">
+                        <Music2 className="w-3.5 h-3.5" />
+                        <span>Squad Library</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-purple-500/30 text-[10px] text-white">
                           {squadSongs.length}
                         </span>
-                      </button>
-
-                      {stations.length > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setDockTab("stations")}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                            dockTab === "stations"
-                              ? "bg-purple-600 text-white font-semibold"
-                              : "text-zinc-400 hover:text-white"
-                          }`}
-                        >
-                          Focus Stations
-                        </button>
-                      )}
-
-                      <button
-                        type="button"
-                        onClick={() => setDockTab("url")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                          dockTab === "url"
-                            ? "bg-purple-600 text-white font-semibold"
-                            : "text-zinc-400 hover:text-white"
-                        }`}
-                      >
-                        Direct URL
-                      </button>
+                      </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={() => setIsAddSongModalOpen(true)}
-                      className="px-2.5 py-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-sm"
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm shadow-purple-600/30 cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                       <span>Add Song</span>
                     </button>
                   </div>
 
-                  {/* TAB 1: Squad Songs Library */}
-                  {dockTab === "squad" && (
-                    <div className="space-y-2">
-                      <div className="relative">
-                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-                        <input
-                          type="text"
-                          placeholder="Search squad tracks or artists..."
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60"
-                        />
-                      </div>
+                  {/* Squad Songs Library */}
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      <input
+                        type="text"
+                        placeholder="Search squad tracks or artists..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60"
+                      />
+                    </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
-                        {filteredSquadSongs.length === 0 ? (
-                          <div className="col-span-2 text-center py-6 px-4 rounded-xl bg-black/20 border border-dashed border-white/10">
-                            <p className="text-xs text-zinc-400 font-medium">
-                              No squad songs added yet
-                            </p>
-                            <p className="text-[10px] text-zinc-500 mt-1">
-                              Click &quot;Add Song&quot; above to add your first MP3 or stream link!
-                            </p>
-                          </div>
-                        ) : (
-                          filteredSquadSongs.map((track) => {
-                            const isCurrent = currentTrack.id === track.id;
-                            return (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {filteredSquadSongs.length === 0 ? (
+                        <div className="col-span-2 text-center py-6 px-4 rounded-xl bg-black/20 border border-dashed border-white/10">
+                          <p className="text-xs text-zinc-400 font-medium">
+                            No squad songs added yet
+                          </p>
+                          <p className="text-[10px] text-zinc-500 mt-1">
+                            Click &quot;Add Song&quot; above to add your first YouTube or audio stream!
+                          </p>
+                        </div>
+                      ) : (
+                        filteredSquadSongs.map((track) => {
+                          const isCurrent = currentTrack.id === track.id;
+                          return (
+                            <div
+                              key={track.id}
+                              className={`p-2 rounded-xl border text-left transition-all flex items-center justify-between gap-2 group ${
+                                isCurrent
+                                  ? "bg-purple-500/15 border-purple-500/40 text-white"
+                                  : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-300 hover:text-white"
+                              }`}
+                            >
                               <div
-                                key={track.id}
-                                className={`p-2 rounded-xl border text-left transition-all flex items-center justify-between gap-2 group ${
-                                  isCurrent
-                                    ? "bg-purple-500/15 border-purple-500/40 text-white"
-                                    : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-300 hover:text-white"
-                                }`}
+                                onClick={() => changeTrack(track)}
+                                className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
                               >
-                                <div
-                                  onClick={() => changeTrack(track)}
-                                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img
-                                    src={
-                                      track.albumArt ||
-                                      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"
-                                    }
-                                    alt={track.title}
-                                    className="w-8 h-8 rounded-lg object-cover shrink-0"
-                                  />
-                                  <div className="min-w-0">
-                                    <div className="text-xs font-semibold truncate">
-                                      {track.title}
-                                    </div>
-                                    <div className="text-[10px] text-zinc-400 truncate">
-                                      {track.artist}
-                                    </div>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={
+                                    track.albumArt ||
+                                    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"
+                                  }
+                                  alt={track.title}
+                                  className="w-8 h-8 rounded-lg object-cover shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold truncate">
+                                    {track.title}
+                                  </div>
+                                  <div className="text-[10px] text-zinc-400 truncate">
+                                    {track.artist}
                                   </div>
                                 </div>
+                              </div>
 
-                                {track.addedBy?.id === currentUser.id && (
-                                  <button
-                                    onClick={() => removeSong(track.id)}
-                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-opacity cursor-pointer"
-                                    title="Remove from squad library"
-                                  >
-                                    <Trash2 className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* TAB 2: Curated Focus Stations */}
-                  {dockTab === "stations" && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {filteredStations.map((station) => {
-                        const isCurrent = currentTrack.id === station.track.id;
-                        return (
-                          <button
-                            key={station.id}
-                            type="button"
-                            onClick={() => changeTrack(station.track)}
-                            className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
-                              isCurrent
-                                ? "bg-purple-500/15 border-purple-500/40 text-white"
-                                : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-300 hover:text-white"
-                            }`}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={station.coverArt}
-                              alt={station.title}
-                              className="w-8 h-8 rounded-lg object-cover shrink-0"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="text-xs font-semibold truncate">
-                                {station.title}
-                              </div>
-                              <div className="text-[10px] text-zinc-400 truncate">
-                                {station.genre}
-                              </div>
+                              {track.addedBy?.id === currentUser.id && (
+                                <button
+                                  onClick={() => removeSong(track.id)}
+                                  className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-opacity cursor-pointer"
+                                  title="Remove from squad library"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
                             </div>
-                          </button>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
-                  )}
-
-                  {/* TAB 3: Direct URL Stream Input */}
-                  {dockTab === "url" && (
-                    <form onSubmit={handleCustomSubmit} className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="url"
-                          placeholder="Paste direct audio URL (https://.../song.mp3)"
-                          value={customInput}
-                          onChange={(e) => setCustomInput(e.target.value)}
-                          className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60 font-mono"
-                        />
-                        <button
-                          type="submit"
-                          className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer shrink-0"
-                        >
-                          Play URL
-                        </button>
-                      </div>
-                      <p className="text-[10px] text-zinc-500">
-                        Plays direct MP3, AAC, OGG, or Internet radio streams immediately in solo mode.
-                      </p>
-                    </form>
-                  )}
+                  </div>
                 </div>
               </div>
             </div>

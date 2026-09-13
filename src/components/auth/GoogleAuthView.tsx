@@ -69,7 +69,7 @@ export function GoogleAuthView() {
                 Welcome to SYNC
               </h1>
               <p className="text-xs sm:text-sm text-zinc-400 mt-1.5 leading-relaxed">
-                Connect your squad, sync real-time schedules, work to shared Spotify beats, and hop on Google Meet.
+                Connect your squad, sync real-time schedules, work to shared squad focus beats, and hop on Google Meet.
               </p>
             </div>
           </div>
@@ -136,12 +136,12 @@ export function GoogleAuthView() {
             </div>
 
             <div className="p-2.5 rounded-xl bg-white/5 border border-white/5">
-              <div className="text-[#1DB954] mb-1">
+              <div className="text-purple-400 mb-1">
                 <Headphones className="w-4 h-4" />
               </div>
-              <div className="text-xs font-semibold text-white">Spotify Sync</div>
+              <div className="text-xs font-semibold text-white">Music Lounge</div>
               <div className="text-[10px] text-zinc-400 mt-0.5">
-                Squad listening parties & live vibes.
+                Squad listening parties & live co-listening.
               </div>
             </div>
 

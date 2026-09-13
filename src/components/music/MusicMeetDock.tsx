@@ -5,12 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useMusicMeet } from "@/context/MusicMeetContext";
 import { useSync } from "@/context/SyncContext";
+import { formatAudioTime } from "@/lib/services/music-service";
+import { AddSongModal } from "@/components/music/AddSongModal";
 import {
   Play,
   Pause,
   Headphones,
   Video,
-  ExternalLink,
   ChevronUp,
   ChevronDown,
   Sparkles,
@@ -18,13 +19,14 @@ import {
   Volume2,
   VolumeX,
   Users,
-  Check,
   Disc3,
-  Flame,
   Music2,
   X,
   Search,
-  Loader2,
+  Plus,
+  SkipBack,
+  SkipForward,
+  Trash2,
 } from "lucide-react";
 
 export function MusicMeetDock() {
@@ -37,32 +39,34 @@ export function MusicMeetDock() {
     listeningWith,
     focusRoom,
     stations,
+    squadSongs,
+    allAvailableTracks,
     isDockExpanded,
-    isSpotifyConfigured,
     volume,
     isMuted,
     isBroadcasting,
+    currentTime,
+    duration,
     togglePlay,
     changeTrack,
+    seekTo,
     tuneInToMember,
-    stopTuneIn,
     goSolo,
     toggleBroadcast,
     toggleDockExpanded,
-    setDockExpanded,
     loadCustomTrack,
-    searchTracks,
-    toggleGroupListening,
+    removeSong,
     toggleMute,
+    setVolume,
+    playNextTrack,
+    playPrevTrack,
   } = useMusicMeet();
 
   const [customInput, setCustomInput] = useState("");
   const [showSquadFlyout, setShowSquadFlyout] = useState(false);
-  const [dockTab, setDockTab] = useState<"stations" | "search" | "url">("stations");
+  const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
+  const [dockTab, setDockTab] = useState<"squad" | "stations" | "url">("squad");
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSpotifyEmbed, setShowSpotifyEmbed] = useState(false);
 
   // Active friends presence (excluding current user or showing everyone)
   const squadPresences = Object.values(presences).filter(
@@ -83,20 +87,29 @@ export function MusicMeetDock() {
     }
   };
 
-  const handleSearch = async (e?: React.FormEvent, directQuery?: string) => {
-    if (e) e.preventDefault();
-    const q = directQuery || searchQuery;
-    if (!q.trim()) return;
-    setIsSearching(true);
-    try {
-      const results = await searchTracks(q);
-      setSearchResults(results);
-    } catch (err) {
-      console.error("Spotify search error:", err);
-    } finally {
-      setIsSearching(false);
-    }
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    seekTo(val);
   };
+
+  // Filter songs by search query
+  const filteredSquadSongs = squadSongs.filter(
+    (s) =>
+      s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.artist.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredStations = stations.filter(
+    (st) =>
+      st.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      st.genre.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const effectiveDuration = duration > 0 ? duration : currentTrack.duration || 180;
+  const progressPercent =
+    effectiveDuration > 0
+      ? Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100))
+      : 0;
 
   return (
     <>
@@ -106,24 +119,53 @@ export function MusicMeetDock() {
           isDockExpanded ? "bottom-6" : "bottom-20 md:bottom-5"
         } left-1/2 -translate-x-1/2 w-[calc(100%-1.5rem)] max-w-4xl`}
       >
-        <div className="relative rounded-2xl bg-[#0d0d0f]/90 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] p-2.5 sm:p-3 text-white">
-          <div className="flex items-center justify-between gap-3">
+        <div className="relative rounded-2xl bg-[#0d0d0f]/92 backdrop-blur-2xl border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.8)] p-2.5 sm:p-3 text-white">
+          {/* Seek Progress Scrobbler Line on Top of Dock */}
+          <div className="absolute -top-1 left-3 right-3 h-1 group cursor-pointer">
+            <div className="w-full h-full rounded-full bg-white/10 overflow-hidden relative">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-150"
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={effectiveDuration}
+              value={currentTime}
+              onChange={handleSeekChange}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              title="Seek audio position"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-0.5">
             {/* Left: Now Playing track info & sound waves */}
             <div className="flex items-center gap-3 min-w-0 flex-1 sm:flex-initial">
-              {/* Album Art with Spotify Badge */}
-              <div className="relative shrink-0 group cursor-pointer" onClick={toggleDockExpanded}>
+              {/* Album Art with Music Badge */}
+              <div
+                className="relative shrink-0 group cursor-pointer"
+                onClick={toggleDockExpanded}
+              >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={currentTrack.albumArt}
+                  src={
+                    currentTrack.albumArt ||
+                    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200"
+                  }
                   alt={currentTrack.title}
                   className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-cover border border-white/15 shadow-md transition-transform group-hover:scale-105"
                 />
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-[#1DB954] flex items-center justify-center shadow-sm">
-                  <Disc3 className={`w-2.5 h-2.5 text-black ${isPlaying ? "animate-spin-slow" : ""}`} />
+                <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-purple-600 flex items-center justify-center shadow-sm">
+                  <Disc3
+                    className={`w-2.5 h-2.5 text-white ${
+                      isPlaying ? "animate-spin-slow" : ""
+                    }`}
+                  />
                 </div>
               </div>
 
-              {/* Title, Artist, and Listening With */}
+              {/* Title, Artist, and Timers */}
               <div className="min-w-0 pr-1">
                 <div className="flex items-center gap-2">
                   <span
@@ -134,21 +176,23 @@ export function MusicMeetDock() {
                   </span>
                   {/* Animated sound wave bars when active */}
                   {isPlaying ? (
-                    <div className="flex items-end gap-0.5 h-3.5 px-1 py-0.5 shrink-0" title="Now Playing">
-                      <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-1" />
-                      <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-2" />
-                      <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-3" />
-                      <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-4" />
+                    <div
+                      className="flex items-end gap-0.5 h-3.5 px-1 py-0.5 shrink-0"
+                      title="Now Playing"
+                    >
+                      <span className="w-0.5 bg-purple-400 rounded-full animate-eq-1" />
+                      <span className="w-0.5 bg-purple-400 rounded-full animate-eq-2" />
+                      <span className="w-0.5 bg-purple-400 rounded-full animate-eq-3" />
                     </div>
-                  ) : (
-                    <span className="text-[10px] text-zinc-500 font-medium shrink-0">
-                      Paused
-                    </span>
-                  )}
+                  ) : null}
                 </div>
 
                 <div className="flex items-center gap-2 text-[11px] text-zinc-400 truncate mt-0.5">
                   <span className="truncate">{currentTrack.artist}</span>
+                  <span className="text-zinc-600 font-mono hidden sm:inline">•</span>
+                  <span className="font-mono text-[10px] text-zinc-400 hidden sm:inline">
+                    {formatAudioTime(currentTime)} / {formatAudioTime(effectiveDuration)}
+                  </span>
                   {tunedInFriend ? (
                     <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-medium">
                       <Headphones className="w-2.5 h-2.5 animate-pulse text-emerald-400" />
@@ -177,7 +221,17 @@ export function MusicMeetDock() {
 
             {/* Center / Right: Global Playback Controls */}
             <div className="flex items-center gap-1.5 sm:gap-2">
-              {/* Play / Pause Toggle Button */}
+              {/* Skip Previous Button */}
+              <button
+                onClick={playPrevTrack}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer hidden sm:flex items-center justify-center"
+                title="Previous Track"
+                aria-label="Previous Track"
+              >
+                <SkipBack className="w-3.5 h-3.5" />
+              </button>
+
+              {/* Play / Pause Button */}
               <button
                 onClick={togglePlay}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-white text-black hover:bg-zinc-200 flex items-center justify-center transition-all shadow-md active:scale-95 cursor-pointer"
@@ -189,6 +243,16 @@ export function MusicMeetDock() {
                 ) : (
                   <Play className="w-4 h-4 fill-current ml-0.5" />
                 )}
+              </button>
+
+              {/* Skip Next Button */}
+              <button
+                onClick={playNextTrack}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer hidden sm:flex items-center justify-center"
+                title="Next Track"
+                aria-label="Next Track"
+              >
+                <SkipForward className="w-3.5 h-3.5" />
               </button>
 
               {/* Mute / Unmute Button */}
@@ -233,7 +297,11 @@ export function MusicMeetDock() {
                           /* eslint-disable-next-line @next/next/no-img-element */
                           <img
                             key={p.userId}
-                            src={user?.photoURL || (user as any)?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"}
+                            src={
+                              user?.photoURL ||
+                              (user as any)?.avatar ||
+                              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"
+                            }
                             alt={user?.displayName || "Member"}
                             className="w-4 h-4 rounded-full ring-1 ring-[#0d0d0f] object-cover"
                           />
@@ -241,7 +309,11 @@ export function MusicMeetDock() {
                       })}
                     </div>
                   )}
-                  <Headphones className={`w-4 h-4 ${listeningWith ? "text-emerald-400" : "text-[#1DB954]"}`} />
+                  <Headphones
+                    className={`w-4 h-4 ${
+                      listeningWith ? "text-emerald-400" : "text-purple-400"
+                    }`}
+                  />
                   <span className="text-xs font-mono font-medium hidden sm:inline">
                     {listeningWith
                       ? "Synced"
@@ -256,8 +328,10 @@ export function MusicMeetDock() {
                   <div className="absolute bottom-12 right-0 w-80 sm:w-88 rounded-2xl bg-[#141416]/95 backdrop-blur-2xl border border-white/15 shadow-2xl p-3.5 space-y-3 z-50 animate-in fade-in duration-150">
                     <div className="flex items-center justify-between pb-2 border-b border-white/10">
                       <div className="flex items-center gap-1.5">
-                        <Headphones className="w-4 h-4 text-emerald-400" />
-                        <span className="text-xs font-semibold text-white">Squad Audio Jams</span>
+                        <Headphones className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs font-semibold text-white">
+                          Squad Audio Jams
+                        </span>
                       </div>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -265,7 +339,7 @@ export function MusicMeetDock() {
                           onClick={toggleBroadcast}
                           className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold border transition-colors flex items-center gap-1 cursor-pointer ${
                             isBroadcasting
-                              ? "bg-purple-500 text-black border-purple-400"
+                              ? "bg-purple-600 text-white border-purple-500"
                               : "bg-white/10 hover:bg-white/20 border-white/15 text-white"
                           }`}
                           title="Broadcast your track to all squad members"
@@ -299,91 +373,117 @@ export function MusicMeetDock() {
                         <button
                           type="button"
                           onClick={goSolo}
-                          className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black text-[10px] font-bold hover:bg-emerald-400 transition-colors shrink-0 cursor-pointer"
+                          className="px-2 py-1 rounded-lg bg-emerald-500 text-black font-semibold text-[10px] hover:bg-emerald-400 shrink-0 ml-2 cursor-pointer"
                         >
-                          Go Solo
+                          Leave
                         </button>
                       </div>
                     )}
 
-                    {squadPresences.length === 0 ? (
-                      <div className="text-[11px] text-zinc-500 py-4 text-center leading-relaxed">
-                        No other friends actively streaming music right now.
-                        <br />
-                        <span className="text-zinc-400">Click &ldquo;Start Jam&rdquo; above to invite your squad!</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                        <div className="text-[10px] uppercase font-semibold tracking-wider text-zinc-500 px-0.5">
-                          Teammates Online
+                    {/* Squad Members Currently Playing */}
+                    <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                      {squadPresences.length === 0 ? (
+                        <div className="text-center py-5 px-3 rounded-xl bg-white/5 border border-dashed border-white/10">
+                          <Music2 className="w-6 h-6 text-zinc-500 mx-auto mb-1.5" />
+                          <p className="text-xs text-zinc-300 font-medium">
+                            No squad jams right now
+                          </p>
+                          <p className="text-[10px] text-zinc-500 mt-0.5">
+                            Play a song or start broadcasting to invite friends!
+                          </p>
                         </div>
-                        {squadPresences.map((p) => {
+                      ) : (
+                        squadPresences.map((p) => {
                           const user = allUsers[p.userId];
-                          const isTune = listeningWith === p.userId;
+                          const isCurrentTune = listeningWith === p.userId;
                           return (
                             <div
                               key={p.userId}
-                              className={`p-2.5 rounded-xl border flex items-center justify-between gap-2.5 transition-all ${
-                                isTune
-                                  ? "bg-emerald-500/10 border-emerald-500/30"
-                                  : "bg-white/5 hover:bg-white/10 border-white/5"
-                              }`}
+                              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-colors flex items-center justify-between gap-2"
                             >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={p.track?.albumArt || user?.photoURL || (user as any)?.avatar || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"}
-                                  alt={p.track?.title || "Track"}
-                                  className="w-9 h-9 rounded-lg object-cover shrink-0 border border-white/10"
-                                />
+                              <div className="flex items-center gap-2 min-w-0">
+                                <div className="relative shrink-0">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={
+                                      user?.photoURL ||
+                                      (user as any)?.avatar ||
+                                      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"
+                                    }
+                                    alt={user?.displayName || "Member"}
+                                    className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15"
+                                  />
+                                  {p.isPlaying && (
+                                    <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-purple-400 ring-2 ring-[#141416]" />
+                                  )}
+                                </div>
+
                                 <div className="min-w-0">
-                                  <div className="font-semibold text-xs text-white truncate flex items-center gap-1.5">
-                                    <span>{user?.displayName || "Squad Member"}</span>
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-xs font-semibold text-white truncate">
+                                      {user?.displayName || "Member"}
+                                    </span>
                                     {p.isBroadcasting && (
-                                      <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[9px] font-mono border border-purple-500/30">
+                                      <span className="text-[9px] px-1 py-0.2 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
                                         DJ
                                       </span>
                                     )}
                                   </div>
-                                  <div className="text-[11px] text-zinc-300 truncate">
-                                    {p.track?.title}
-                                  </div>
-                                  <div className="text-[10px] text-zinc-500 truncate">
-                                    {p.track?.artist}
+                                  <div className="text-[10px] text-zinc-400 truncate">
+                                    {p.track?.title || "Focus Beats"} • {p.track?.artist || "Squad"}
                                   </div>
                                 </div>
                               </div>
+
+                              {/* Tune In Button */}
                               <button
                                 type="button"
                                 onClick={() => {
-                                  if (isTune) goSolo();
-                                  else tuneInToMember(p.userId);
+                                  if (isCurrentTune) {
+                                    goSolo();
+                                  } else {
+                                    tuneInToMember(p.userId);
+                                  }
                                 }}
-                                className={`px-2.5 py-1.5 rounded-xl text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
-                                  isTune
-                                    ? "bg-emerald-500 text-black shadow-sm"
-                                    : "bg-white/10 text-white hover:bg-white/20 border border-white/10 hover:border-white/20"
+                                className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
+                                  isCurrentTune
+                                    ? "bg-emerald-500 text-black hover:bg-emerald-400"
+                                    : "bg-white/10 hover:bg-white/20 text-white border border-white/15"
                                 }`}
                               >
-                                {isTune ? "✓ In Sync" : "🎧 Join In"}
+                                <Headphones className="w-3 h-3" />
+                                <span>{isCurrentTune ? "Synced" : "Tune In"}</span>
                               </button>
                             </div>
                           );
-                        })}
-                      </div>
-                    )}
+                        })
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
 
-              {/* Google Meet Lounge Quick Hop */}
+              {/* Add Song Button */}
+              <button
+                onClick={() => setIsAddSongModalOpen(true)}
+                className="p-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/40 text-purple-300 transition-colors flex items-center gap-1 cursor-pointer"
+                title="Add song to squad library"
+              >
+                <Plus className="w-4 h-4" />
+                <span className="text-xs font-medium hidden md:inline">Add Song</span>
+              </button>
+
+              {/* Google Meet 1-Click Launch Button */}
               <button
                 onClick={handleLaunchMeet}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-semibold transition-colors"
-                title="Hop into Google Meet Lounge"
+                className="px-2.5 sm:px-3 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-medium text-xs flex items-center gap-1.5 shadow-md shadow-emerald-950/40 active:scale-95 transition-all cursor-pointer"
+                title="Launch Google Meet study room"
               >
                 <Video className="w-3.5 h-3.5" />
-                <span className="hidden md:inline">Meet Lounge</span>
+                <span className="hidden sm:inline">Meet</span>
+                {focusRoom.activeMemberIds.length > 0 && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                )}
               </button>
 
               {/* Focus Room Link */}
@@ -391,19 +491,19 @@ export function MusicMeetDock() {
                 href="/room"
                 className={`p-2 rounded-xl border transition-colors ${
                   pathname === "/room"
-                    ? "bg-white text-black border-white"
+                    ? "bg-white/20 border-white/30 text-white"
                     : "bg-white/5 hover:bg-white/10 border-white/10 text-zinc-400 hover:text-white"
                 }`}
-                title="Go to Virtual Focus Room"
+                title="Open Focus Room"
               >
-                <Users className="w-3.5 h-3.5" />
+                <Users className="w-4 h-4" />
               </Link>
 
               {/* Expand / Minimize Player Drawer Toggle */}
               <button
                 onClick={toggleDockExpanded}
-                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-colors"
-                title={isDockExpanded ? "Minimize Player" : "Expand Spotify Player"}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                title={isDockExpanded ? "Minimize Player" : "Expand Player"}
                 aria-label={isDockExpanded ? "Minimize Player" : "Expand Player"}
               >
                 {isDockExpanded ? (
@@ -415,269 +515,276 @@ export function MusicMeetDock() {
             </div>
           </div>
 
-          {/* Expanded Spotify Console Drawer */}
+          {/* Expanded Music Lounge Drawer */}
           {isDockExpanded && (
             <div className="mt-4 pt-4 border-t border-white/10 animate-in fade-in duration-200">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                {/* SYNC Studio High-Fidelity Soundstage Card */}
-                <div className="lg:col-span-6 rounded-xl overflow-hidden bg-black/60 border border-white/10 p-3.5 flex flex-col justify-between relative group">
-                  {showSpotifyEmbed ? (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[10px] font-mono text-zinc-400">Spotify Web Embed</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowSpotifyEmbed(false)}
-                          className="text-[10px] text-zinc-400 hover:text-white px-2 py-0.5 rounded bg-white/5 hover:bg-white/10"
-                        >
-                          ✕ Close Embed
-                        </button>
-                      </div>
-                      <iframe
-                        title="Spotify Web Embed Player"
-                        src={currentTrack.embedUri}
-                        width="100%"
-                        height="130"
-                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                        loading="lazy"
-                        className="rounded-lg border-0"
+                {/* Now Playing Visualizer Card */}
+                <div className="lg:col-span-5 rounded-xl overflow-hidden bg-black/60 border border-white/10 p-3.5 flex flex-col justify-between relative group">
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-white/15 shadow-md">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={
+                          currentTrack.albumArt ||
+                          "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=300"
+                        }
+                        alt={currentTrack.title}
+                        className={`w-full h-full object-cover transition-transform duration-500 ${
+                          isPlaying ? "scale-105" : "grayscale-[30%]"
+                        }`}
                       />
+                      {isPlaying && (
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                          <div className="flex items-end gap-1 h-4">
+                            <span className="w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.3s] h-3" />
+                            <span className="w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s] h-4" />
+                            <span className="w-1 bg-purple-400 rounded-full animate-bounce h-2" />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3">
-                        <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-white/15 shadow-md">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={currentTrack.albumArt || "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=300"}
-                            alt={currentTrack.title}
-                            className={`w-full h-full object-cover transition-transform duration-500 ${
-                              isPlaying ? "scale-105" : "grayscale-[30%]"
-                            }`}
-                          />
-                          {isPlaying && (
-                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                              <div className="flex items-end gap-1 h-4">
-                                <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s] h-3" />
-                                <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.15s] h-4" />
-                                <span className="w-1 bg-emerald-400 rounded-full animate-bounce h-2" />
-                              </div>
-                            </div>
-                          )}
-                        </div>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
-                              {currentTrack.genre || "Focus Station"}
-                            </span>
-                            <span className="text-[10px] font-mono text-zinc-500">
-                              320kbps Lossless
-                            </span>
-                          </div>
-                          <div className="font-semibold text-sm text-white truncate">
-                            {currentTrack.title}
-                          </div>
-                          <div className="text-xs text-zinc-400 truncate">
-                            {currentTrack.artist}
-                          </div>
-                        </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
+                          {currentTrack.genre || "Focus Station"}
+                        </span>
+                        <span className="text-[10px] font-mono text-zinc-500">
+                          Native HTML5 Audio
+                        </span>
                       </div>
-
-                      <div className="flex items-center justify-between pt-2 mt-2 border-t border-white/5">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-2 h-2 rounded-full ${
-                              isPlaying ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"
-                            }`}
-                          />
-                          <span className="text-[11px] text-zinc-400 font-mono">
-                            {isPlaying ? "Live Audio Stream Active" : "Audio Paused"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                          {currentTrack.spotifyUrl && (
-                            <a
-                              href={currentTrack.spotifyUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-zinc-300 hover:text-white flex items-center gap-1 transition-colors"
-                              title="Open on Spotify Web"
-                            >
-                              <span>Spotify Web</span>
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setShowSpotifyEmbed(true)}
-                            className="text-[11px] text-zinc-500 hover:text-zinc-300 transition-colors"
-                            title="Load Spotify Embed Player"
-                          >
-                            Embed Widget
-                          </button>
-                        </div>
+                      <div className="font-semibold text-sm text-white truncate">
+                        {currentTrack.title}
                       </div>
-                    </>
-                  )}
+                      <div className="text-xs text-zinc-400 truncate">
+                        {currentTrack.artist}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Volume Slider & Seek Info */}
+                  <div className="pt-3 mt-3 border-t border-white/5 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                      <span>{formatAudioTime(currentTime)}</span>
+                      <span className="text-zinc-600">/</span>
+                      <span>{formatAudioTime(effectiveDuration)}</span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button onClick={toggleMute} className="text-zinc-400 hover:text-white">
+                        {isMuted ? (
+                          <VolumeX className="w-3.5 h-3.5 text-red-400" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={isMuted ? 0 : volume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="w-24 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                        title="Volume"
+                      />
+                      <span className="text-[10px] text-zinc-500 font-mono ml-auto">
+                        {Math.round((isMuted ? 0 : volume) * 100)}%
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Spotify Controls with Tabbed Modes */}
-                <div className="lg:col-span-6 flex flex-col justify-between space-y-2.5">
-                  {/* Mode Navigation Pills */}
-                  <div className="flex items-center gap-1 p-1 rounded-xl bg-black/40 border border-white/10 self-start">
+                {/* Track Selector & Squad Library Console */}
+                <div className="lg:col-span-7 flex flex-col justify-between space-y-2.5">
+                  {/* Tabs: Squad Songs vs Curated Stations vs Direct Link */}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1 p-1 rounded-xl bg-black/40 border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setDockTab("squad")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1.5 ${
+                          dockTab === "squad"
+                            ? "bg-purple-600 text-white font-semibold"
+                            : "text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        <Music2 className="w-3 h-3" />
+                        <span>Squad Songs</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-white/10 text-[9px]">
+                          {squadSongs.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDockTab("stations")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                          dockTab === "stations"
+                            ? "bg-purple-600 text-white font-semibold"
+                            : "text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        Focus Stations
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setDockTab("url")}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                          dockTab === "url"
+                            ? "bg-purple-600 text-white font-semibold"
+                            : "text-zinc-400 hover:text-white"
+                        }`}
+                      >
+                        Direct URL
+                      </button>
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => setDockTab("stations")}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                        dockTab === "stations"
-                          ? "bg-white text-black font-semibold"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
+                      onClick={() => setIsAddSongModalOpen(true)}
+                      className="px-2.5 py-1 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors shadow-sm"
                     >
-                      Focus Stations
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDockTab("search")}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${
-                        dockTab === "search"
-                          ? "bg-white text-black font-semibold"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      <Search className="w-3 h-3" />
-                      <span>Search API</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDockTab("url")}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                        dockTab === "url"
-                          ? "bg-white text-black font-semibold"
-                          : "text-zinc-400 hover:text-white"
-                      }`}
-                    >
-                      Paste Link
+                      <Plus className="w-3 h-3" />
+                      <span>Add Song</span>
                     </button>
                   </div>
 
-                  {/* Mode 1: Curated Stations */}
-                  {dockTab === "stations" && (
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {stations.map((st) => (
-                        <button
-                          key={st.id}
-                          onClick={() => changeTrack(st.track)}
-                          className={`px-2.5 py-2 rounded-lg text-left text-xs transition-colors flex items-center gap-2 border ${
-                            currentTrack.id === st.track.id
-                              ? "bg-white/15 border-white/30 text-white font-medium"
-                              : "bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
-                          }`}
-                        >
-                          <Disc3 className="w-3.5 h-3.5 text-[#1DB954] shrink-0" />
-                          <div className="truncate min-w-0">
-                            <div className="truncate text-xs text-white">{st.title}</div>
-                            <div className="text-[10px] text-zinc-500 truncate">{st.genre}</div>
+                  {/* TAB 1: Squad Songs Library */}
+                  {dockTab === "squad" && (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                        <input
+                          type="text"
+                          placeholder="Search squad tracks or artists..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1">
+                        {filteredSquadSongs.length === 0 ? (
+                          <div className="col-span-2 text-center py-6 px-4 rounded-xl bg-black/20 border border-dashed border-white/10">
+                            <p className="text-xs text-zinc-400 font-medium">
+                              No squad songs added yet
+                            </p>
+                            <p className="text-[10px] text-zinc-500 mt-1">
+                              Click &quot;Add Song&quot; above to add your first MP3 or stream link!
+                            </p>
                           </div>
-                        </button>
-                      ))}
+                        ) : (
+                          filteredSquadSongs.map((track) => {
+                            const isCurrent = currentTrack.id === track.id;
+                            return (
+                              <div
+                                key={track.id}
+                                className={`p-2 rounded-xl border text-left transition-all flex items-center justify-between gap-2 group ${
+                                  isCurrent
+                                    ? "bg-purple-500/15 border-purple-500/40 text-white"
+                                    : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-300 hover:text-white"
+                                }`}
+                              >
+                                <div
+                                  onClick={() => changeTrack(track)}
+                                  className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={
+                                      track.albumArt ||
+                                      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"
+                                    }
+                                    alt={track.title}
+                                    className="w-8 h-8 rounded-lg object-cover shrink-0"
+                                  />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold truncate">
+                                      {track.title}
+                                    </div>
+                                    <div className="text-[10px] text-zinc-400 truncate">
+                                      {track.artist}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {track.addedBy?.id === currentUser.id && (
+                                  <button
+                                    onClick={() => removeSong(track.id)}
+                                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-opacity cursor-pointer"
+                                    title="Remove from squad library"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
                     </div>
                   )}
 
-                  {/* Mode 2: Live Spotify Search */}
-                  {dockTab === "search" && (
-                    <div className="space-y-2">
-                      <form onSubmit={handleSearch} className="flex gap-1.5">
-                        <div className="relative flex-1">
-                          <input
-                            type="text"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search track, artist, album..."
-                            className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-white/30 font-sans"
-                          />
-                          <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5 pointer-events-none" />
-                        </div>
+                  {/* TAB 2: Curated Focus Stations */}
+                  {dockTab === "stations" && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                      {filteredStations.map((station) => {
+                        const isCurrent = currentTrack.id === station.track.id;
+                        return (
+                          <button
+                            key={station.id}
+                            type="button"
+                            onClick={() => changeTrack(station.track)}
+                            className={`p-2 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
+                              isCurrent
+                                ? "bg-purple-500/15 border-purple-500/40 text-white"
+                                : "bg-white/5 hover:bg-white/10 border-white/5 text-zinc-300 hover:text-white"
+                            }`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={station.coverArt}
+                              alt={station.title}
+                              className="w-8 h-8 rounded-lg object-cover shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="text-xs font-semibold truncate">
+                                {station.title}
+                              </div>
+                              <div className="text-[10px] text-zinc-400 truncate">
+                                {station.genre}
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* TAB 3: Direct URL Stream Input */}
+                  {dockTab === "url" && (
+                    <form onSubmit={handleCustomSubmit} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="url"
+                          placeholder="Paste direct audio URL (https://.../song.mp3)"
+                          value={customInput}
+                          onChange={(e) => setCustomInput(e.target.value)}
+                          className="flex-1 px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60 font-mono"
+                        />
                         <button
                           type="submit"
-                          disabled={isSearching || !searchQuery.trim()}
-                          className="px-3 py-1.5 rounded-xl bg-[#1DB954] text-black hover:bg-[#1ed760] disabled:opacity-50 text-xs font-semibold transition-colors shrink-0 flex items-center gap-1"
+                          className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-medium transition-colors shadow-sm cursor-pointer shrink-0"
                         >
-                          {isSearching ? <Loader2 className="w-3 h-3 animate-spin" /> : "Search"}
+                          Play URL
                         </button>
-                      </form>
-
-                      {/* Quick Search Chips */}
-                      {searchResults.length === 0 && (
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {["Hans Zimmer", "Lofi Beats", "Synthwave", "Chopin", "Deep Focus"].map((tag) => (
-                            <button
-                              key={tag}
-                              type="button"
-                              onClick={() => {
-                                setSearchQuery(tag);
-                                handleSearch(undefined, tag);
-                              }}
-                              className="px-2 py-0.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-zinc-400 hover:text-white transition-colors"
-                            >
-                              {tag}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Search Results List */}
-                      {searchResults.length > 0 && (
-                        <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
-                          {searchResults.map((tr) => (
-                            <div
-                              key={tr.id}
-                              onClick={() => changeTrack(tr)}
-                              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/5 flex items-center justify-between gap-2 cursor-pointer transition-colors"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={tr.albumArt}
-                                  alt={tr.title}
-                                  className="w-7 h-7 rounded object-cover shrink-0"
-                                />
-                                <div className="truncate min-w-0">
-                                  <div className="text-xs font-medium text-white truncate">{tr.title}</div>
-                                  <div className="text-[10px] text-zinc-400 truncate">{tr.artist}</div>
-                                </div>
-                              </div>
-                              <button
-                                type="button"
-                                className="px-2 py-0.5 rounded bg-white/10 hover:bg-white/20 text-white text-[10px] font-semibold shrink-0"
-                              >
-                                Play
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Mode 3: Custom Spotify URL Input */}
-                  {dockTab === "url" && (
-                    <form onSubmit={handleCustomSubmit} className="flex gap-1.5">
-                      <input
-                        type="text"
-                        value={customInput}
-                        onChange={(e) => setCustomInput(e.target.value)}
-                        placeholder="Paste Spotify track/playlist URL..."
-                        className="flex-1 px-3 py-1.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 font-mono"
-                      />
-                      <button
-                        type="submit"
-                        className="px-3 py-1.5 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-colors shrink-0"
-                      >
-                        Load
-                      </button>
+                      </div>
+                      <p className="text-[10px] text-zinc-500">
+                        Plays direct MP3, AAC, OGG, or Internet radio streams immediately in solo mode.
+                      </p>
                     </form>
                   )}
                 </div>
@@ -686,6 +793,12 @@ export function MusicMeetDock() {
           )}
         </div>
       </div>
+
+      {/* Add Song Modal */}
+      <AddSongModal
+        isOpen={isAddSongModalOpen}
+        onClose={() => setIsAddSongModalOpen(false)}
+      />
     </>
   );
 }

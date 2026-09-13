@@ -85,7 +85,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      {/* Floating Spotify & Google Meet Lounge Dock */}
+      {/* Floating Squad Music & Google Meet Lounge Dock */}
       <MusicMeetDock />
 
       {/* Mobile Bottom Dock Navigation */}

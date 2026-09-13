@@ -6,11 +6,8 @@ import { useSync } from "@/context/SyncContext";
 import { getLevelProgress, XP_REWARDS } from "@/lib/constants";
 import { TiltCard } from "@/components/ui/TiltCard";
 import { fetchGitHubStats, fetchLeetCodeStats } from "@/lib/services/sync-service";
-import {
-  getSpotifyCredentials,
-  saveSpotifyCredentials,
-  testSpotifyConnection,
-} from "@/lib/services/spotify-service";
+import { useMusicMeet } from "@/context/MusicMeetContext";
+import { AddSongModal } from "@/components/music/AddSongModal";
 import { GitHubStats, LeetCodeStats, UserProfile } from "@/types";
 import {
   Settings as SettingsIcon,
@@ -45,6 +42,9 @@ import {
   Key,
   Lock,
   AlertCircle,
+  Plus,
+  Music2,
+  Trash2,
 } from "lucide-react";
 
 function GithubIcon({ className = "w-5 h-5" }: { className?: string }) {
@@ -69,18 +69,20 @@ export default function SettingsPage() {
     participants,
   } = useSync();
 
-  const [activeTab, setActiveTab] = useState<"profile" | "spotify" | "squad" | "preferences">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "music" | "squad" | "preferences">("profile");
+  const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
 
-  // Spotify Credentials & Test State
-  const [spotifyClientId, setSpotifyClientId] = useState("");
-  const [spotifyClientSecret, setSpotifyClientSecret] = useState("");
-  const [spotifyStatus, setSpotifyStatus] = useState<{ checked: boolean; success: boolean; message: string }>({
-    checked: false,
-    success: false,
-    message: "",
-  });
-  const [isTestingSpotify, setIsTestingSpotify] = useState(false);
-  const [copiedRedirect, setCopiedRedirect] = useState(false);
+  const {
+    squadSongs,
+    stations,
+    currentTrack,
+    changeTrack,
+    removeSong,
+    volume,
+    setVolume,
+    isMuted,
+    toggleMute,
+  } = useMusicMeet();
 
   // Profile Form State
   const [displayName, setDisplayName] = useState(currentUser.displayName || "");
@@ -119,39 +121,7 @@ export default function SettingsPage() {
     if (currentUser.leetcodeUsername || currentUser.leetcodeStats?.username) {
       setLeetcodeInput(currentUser.leetcodeStats?.username || currentUser.leetcodeUsername || "");
     }
-
-    const creds = getSpotifyCredentials();
-    setSpotifyClientId(creds.clientId);
-    setSpotifyClientSecret(creds.clientSecret);
-    if (creds.clientId && creds.clientSecret && !creds.clientId.includes("your_spotify")) {
-      testSpotifyConnection().then((res) => {
-        setSpotifyStatus({ checked: true, success: res.success, message: res.message });
-      });
-    }
   }, [currentUser]);
-
-  // Save and Test Spotify Developer Credentials
-  const handleSaveSpotify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsTestingSpotify(true);
-    saveSpotifyCredentials(spotifyClientId.trim(), spotifyClientSecret.trim());
-    const res = await testSpotifyConnection();
-    setSpotifyStatus({ checked: true, success: res.success, message: res.message });
-    setIsTestingSpotify(false);
-    if (res.success) {
-      addToast({
-        title: "Spotify API Connected",
-        description: "Your Spotify credentials are saved and verified.",
-        type: "success",
-      });
-    } else {
-      addToast({
-        title: "Spotify Connection Notice",
-        description: res.message,
-        type: "default",
-      });
-    }
-  };
 
   const levelInfo = getLevelProgress(currentUser.totalXP);
 
@@ -415,17 +385,19 @@ export default function SettingsPage() {
               <span>Squad Profiles & Analysis</span>
             </button>
             <button
-              onClick={() => setActiveTab("spotify")}
+              onClick={() => setActiveTab("music")}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all ${
-                activeTab === "spotify"
+                activeTab === "music"
                   ? "bg-white/10 text-white border border-white/10 shadow-sm"
                   : "text-zinc-400 hover:text-white hover:bg-white/5"
               }`}
             >
-              <Disc3 className="w-3.5 h-3.5 text-[#1DB954]" />
-              <span>Spotify Integration</span>
-              {spotifyStatus.checked && spotifyStatus.success && (
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <Music2 className="w-3.5 h-3.5 text-purple-400" />
+              <span>Squad Music Lounge</span>
+              {squadSongs.length > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-purple-500/20 text-purple-300 text-[10px]">
+                  {squadSongs.length}
+                </span>
               )}
             </button>
             <button
@@ -950,218 +922,180 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {/* TAB: Spotify Developer API Integration */}
-        {activeTab === "spotify" && (
+        {/* TAB: Squad Music & Audio Lounge */}
+        {activeTab === "music" && (
           <div className="space-y-8 animate-in fade-in duration-200">
             <div>
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div>
                   <h2 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
-                    <Disc3 className="w-5 h-5 text-[#1DB954]" />
-                    <span>Spotify Developer API Integration</span>
+                    <Music2 className="w-5 h-5 text-purple-400" />
+                    <span>Squad Music & Audio Lounge</span>
                   </h2>
                   <p className="text-xs text-zinc-400 mt-0.5">
-                    Configure your Spotify Developer Client ID and Client Secret to enable live track searching, metadata retrieval, and squad-wide music broadcasting.
+                    Manage the shared squad audio library. Any song added here is immediately available to everyone in your squad in real time.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-                      spotifyStatus.checked && spotifyStatus.success
-                        ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-                        : "bg-amber-500/10 text-amber-300 border-amber-500/30"
-                    }`}
-                  >
-                    <span
-                      className={`w-2 h-2 rounded-full ${
-                        spotifyStatus.checked && spotifyStatus.success
-                          ? "bg-emerald-400 animate-pulse"
-                          : "bg-amber-400"
-                      }`}
-                    />
-                    <span>
-                      {spotifyStatus.checked && spotifyStatus.success
-                        ? "Connected & Verified"
-                        : "Awaiting Verification"}
-                    </span>
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddSongModalOpen(true)}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-md shadow-purple-600/30 self-start sm:self-auto cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Song to Library</span>
+                </button>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                {/* Left 7 Cols: Credentials Form */}
+                {/* Left 7 Cols: Squad Songs Grid */}
                 <div className="lg:col-span-7 space-y-6">
-                  <TiltCard className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-5">
-                    <form onSubmit={handleSaveSpotify} className="space-y-4">
-                      {/* Spotify Client ID */}
-                      <div>
-                        <label className="block text-xs font-semibold text-white mb-1.5 flex items-center gap-1.5">
-                          <Key className="w-3.5 h-3.5 text-zinc-400" />
-                          <span>Spotify Client ID</span>
-                        </label>
-                        <input
-                          type="text"
-                          value={spotifyClientId}
-                          onChange={(e) => setSpotifyClientId(e.target.value)}
-                          placeholder="e.g. 4a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d"
-                          className="w-full px-3.5 py-2 rounded-xl bg-black/60 border border-white/10 text-xs font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
-                        />
-                        <span className="text-[11px] text-zinc-500 mt-1 block">
-                          Found in your Spotify Developer App settings.
-                        </span>
-                      </div>
+                  <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-zinc-400">
+                        Squad Shared Library ({squadSongs.length} Tracks)
+                      </h3>
+                      <span className="text-[10px] font-mono text-purple-400">
+                        Universal HTML5 Audio
+                      </span>
+                    </div>
 
-                      {/* Spotify Client Secret */}
-                      <div>
-                        <label className="block text-xs font-semibold text-white mb-1.5 flex items-center gap-1.5">
-                          <Lock className="w-3.5 h-3.5 text-zinc-400" />
-                          <span>Spotify Client Secret</span>
-                        </label>
-                        <input
-                          type="password"
-                          value={spotifyClientSecret}
-                          onChange={(e) => setSpotifyClientSecret(e.target.value)}
-                          placeholder="••••••••••••••••••••••••••••••••"
-                          className="w-full px-3.5 py-2 rounded-xl bg-black/60 border border-white/10 text-xs font-mono text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30"
-                        />
-                        <span className="text-[11px] text-zinc-500 mt-1 block">
-                          Secret key used for secure server-to-server token authorization.
-                        </span>
-                      </div>
-
-                      {/* Status Message */}
-                      {spotifyStatus.checked && (
-                        <div
-                          className={`p-3 rounded-xl text-xs flex items-start gap-2.5 border ${
-                            spotifyStatus.success
-                              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-300"
-                              : "bg-rose-500/10 border-rose-500/20 text-rose-300"
-                          }`}
-                        >
-                          {spotifyStatus.success ? (
-                            <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400 mt-0.5" />
-                          ) : (
-                            <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-                          )}
-                          <div className="leading-relaxed">{spotifyStatus.message}</div>
-                        </div>
-                      )}
-
-                      {/* Action Buttons */}
-                      <div className="pt-2 flex items-center gap-3">
+                    {squadSongs.length === 0 ? (
+                      <div className="text-center py-12 px-4 rounded-xl bg-black/30 border border-dashed border-white/10 space-y-2">
+                        <Music2 className="w-8 h-8 text-zinc-600 mx-auto" />
+                        <p className="text-xs font-medium text-zinc-300">
+                          No songs added to the squad library yet
+                        </p>
+                        <p className="text-[11px] text-zinc-500 max-w-sm mx-auto">
+                          Upload an audio file or paste any direct MP3/stream link to make it instantly accessible to all friends in your squad.
+                        </p>
                         <button
-                          type="submit"
-                          disabled={isTestingSpotify}
-                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold text-xs transition-all shadow-md active:scale-95 disabled:opacity-50"
+                          onClick={() => setIsAddSongModalOpen(true)}
+                          className="mt-2 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-medium inline-flex items-center gap-1"
                         >
-                          {isTestingSpotify ? (
-                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          ) : (
-                            <Save className="w-3.5 h-3.5" />
-                          )}
-                          <span>
-                            {isTestingSpotify ? "Testing Connection..." : "Save & Verify Connection"}
-                          </span>
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add Your First Song</span>
                         </button>
                       </div>
-                    </form>
-                  </TiltCard>
+                    ) : (
+                      <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                        {squadSongs.map((song) => {
+                          const isCurrent = currentTrack.id === song.id;
+                          return (
+                            <div
+                              key={song.id}
+                              className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 group ${
+                                isCurrent
+                                  ? "bg-purple-500/15 border-purple-500/40 text-white"
+                                  : "bg-white/5 border-white/5 text-zinc-300 hover:text-white hover:bg-white/10"
+                              }`}
+                            >
+                              <div
+                                onClick={() => changeTrack(song)}
+                                className="flex items-center gap-3 min-w-0 flex-1 cursor-pointer"
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={song.albumArt || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"}
+                                  alt={song.title}
+                                  className="w-10 h-10 rounded-lg object-cover shrink-0"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-xs font-semibold truncate">
+                                    {song.title}
+                                  </div>
+                                  <div className="text-[11px] text-zinc-400 truncate">
+                                    {song.artist} • {song.genre || "Focus"}
+                                  </div>
+                                  {song.addedBy && (
+                                    <div className="text-[10px] text-purple-400/80 truncate">
+                                      Added by {song.addedBy.name}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
 
-                  {/* Redirect URIs Reference Card */}
-                  <div className="p-5 rounded-2xl bg-[#111113] border border-white/10 space-y-3">
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => changeTrack(song)}
+                                  className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white"
+                                >
+                                  {isCurrent ? "Playing" : "Play"}
+                                </button>
+                                {song.addedBy?.id === currentUser.id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => removeSong(song.id)}
+                                    className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                                    title="Delete from squad library"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right 5 Cols: Curated Focus Stations & Audio Preferences */}
+                <div className="lg:col-span-5 space-y-6">
+                  {/* Curated Stations */}
+                  <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-4">
                     <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-zinc-400">
-                      Configured Redirect URIs
+                      Curated High-Yield Stations ({stations.length})
                     </h3>
-                    <p className="text-xs text-zinc-400">
-                      Make sure to add these URLs under <strong>Redirect URIs</strong> in your Spotify Developer Dashboard:
-                    </p>
-
-                    <div className="space-y-2 font-mono text-xs">
-                      {[
-                        "http://localhost:3000/api/spotify/callback",
-                        "https://sync-4517e.web.app/api/spotify/callback",
-                        "https://sync-4517e.web.app/",
-                      ].map((uri) => (
+                    <div className="space-y-2">
+                      {stations.map((st) => (
                         <div
-                          key={uri}
-                          className="p-2.5 rounded-xl bg-black/60 border border-white/5 flex items-center justify-between gap-2 text-zinc-300"
+                          key={st.id}
+                          onClick={() => changeTrack(st.track)}
+                          className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 cursor-pointer flex items-center justify-between text-xs"
                         >
-                          <span className="truncate">{uri}</span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              navigator.clipboard.writeText(uri);
-                              addToast({
-                                title: "Copied Redirect URI",
-                                description: uri,
-                                type: "success",
-                              });
-                            }}
-                            className="p-1 text-zinc-500 hover:text-white transition-colors"
-                            title="Copy URI"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold text-white truncate">
+                              {st.title}
+                            </div>
+                            <div className="text-[10px] text-zinc-400 truncate">
+                              {st.genre}
+                            </div>
+                          </div>
+                          <span className="text-[10px] text-purple-400 font-mono shrink-0">
+                            Stream
+                          </span>
                         </div>
                       ))}
                     </div>
                   </div>
-                </div>
 
-                {/* Right 5 Cols: Spotify Developer Setup Guide */}
-                <div className="lg:col-span-5 space-y-4">
+                  {/* Audio Preferences */}
                   <div className="p-6 rounded-2xl bg-[#111113] border border-white/10 space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-white/5">
-                      <span className="text-xs font-semibold text-white uppercase tracking-wider">
-                        Quick Setup Guide
-                      </span>
-                      <a
-                        href="https://developer.spotify.com/dashboard"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-medium transition-colors"
-                      >
-                        <span>Open Dashboard</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-
-                    <ol className="space-y-3 text-xs text-zinc-400 list-decimal list-inside leading-relaxed">
-                      <li>
-                        Log in to the{" "}
-                        <a
-                          href="https://developer.spotify.com/dashboard"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-white underline hover:text-emerald-400"
-                        >
-                          Spotify Developer Dashboard
-                        </a>
-                        .
-                      </li>
-                      <li>
-                        Click <strong className="text-white">Create app</strong>, set App name to{" "}
-                        <code className="text-emerald-300 font-mono">SYNC</code>, and App description to{" "}
-                        <code className="text-emerald-300 font-mono">Squad Study Beats</code>.
-                      </li>
-                      <li>
-                        In the app settings, copy and add the Redirect URIs listed on the left.
-                      </li>
-                      <li>
-                        Select the <strong className="text-white">Web API</strong> checkbox under APIs used.
-                      </li>
-                      <li>
-                        Copy your <strong className="text-white">Client ID</strong> and{" "}
-                        <strong className="text-white">Client Secret</strong>, paste them into the form, and click{" "}
-                        <strong className="text-white">Save & Verify</strong>.
-                      </li>
-                    </ol>
-
-                    <div className="pt-2 border-t border-white/5 text-[11px] text-zinc-500 leading-relaxed">
-                      Note: You can also keep keys in your local <code className="text-zinc-400">.env</code> file under{" "}
-                      <code className="text-zinc-400">SPOTIFY_CLIENT_ID</code> and{" "}
-                      <code className="text-zinc-400">SPOTIFY_CLIENT_SECRET</code>.
+                    <h3 className="text-xs font-semibold text-white uppercase tracking-wider text-zinc-400">
+                      Audio Settings
+                    </h3>
+                    <div className="space-y-3 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-300">Master Volume</span>
+                        <span className="font-mono text-zinc-400">
+                          {Math.round((isMuted ? 0 : volume) * 100)}%
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.01"
+                        value={isMuted ? 0 : volume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                      />
+                      <p className="text-[11px] text-zinc-500">
+                        All audio plays seamlessly across tabs without any Spotify authorization or account restrictions.
+                      </p>
                     </div>
                   </div>
                 </div>

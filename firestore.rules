@@ -89,10 +89,16 @@ service cloud.firestore {
         allow read, write: if isAuthenticated();
       }
 
-      // Live Spotify Presence
+      // Live Squad Music Presence
       match /presence/{userId} {
         allow read: if isAuthenticated();
         allow write: if isUser(userId);
+      }
+
+      // Shared Squad Music Library
+      match /songs/{songId} {
+        allow read: if isAuthenticated();
+        allow create, update, delete: if isAuthenticated();
       }
 
       // Live Google Meet Focus Room & Pomodoro

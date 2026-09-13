@@ -99,7 +99,7 @@ export default function FriendsPage() {
           Squad Profiles & Comparison
         </h1>
         <p className="text-xs sm:text-sm text-zinc-400 mt-1">
-          Deep-dive into individual coding consistency, contribution grids, live Spotify presence, and head-to-head stats.
+          Deep-dive into individual coding consistency, contribution grids, live squad music presence, and head-to-head stats.
         </p>
       </div>
 
@@ -168,17 +168,17 @@ export default function FriendsPage() {
                     </div>
                   </div>
 
-                {/* Live Spotify Pill */}
+                {/* Live Music Pill */}
                 {musicPresence?.track && (
                   <div
                     className="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-xs"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      <span className="flex items-end gap-0.5 h-3 shrink-0" title="Now playing on Spotify">
-                        <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-1" />
-                        <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-2" />
-                        <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-3" />
+                      <span className="flex items-end gap-0.5 h-3 shrink-0" title="Now playing">
+                        <span className="w-0.5 bg-purple-400 rounded-full animate-eq-1" />
+                        <span className="w-0.5 bg-purple-400 rounded-full animate-eq-2" />
+                        <span className="w-0.5 bg-purple-400 rounded-full animate-eq-3" />
                       </span>
                       <span className="text-[11px] text-zinc-300 truncate font-medium">
                         {musicPresence.track.title}
@@ -189,7 +189,7 @@ export default function FriendsPage() {
                       {member.userId !== currentUser.id && (
                         <button
                           onClick={() => tuneInToMember(member.userId)}
-                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors flex items-center gap-1 ${
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors flex items-center gap-1 cursor-pointer ${
                             listeningWith === member.userId
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                               : "bg-white/10 hover:bg-white text-zinc-300 hover:text-black"
@@ -207,15 +207,6 @@ export default function FriendsPage() {
                           )}
                         </button>
                       )}
-                      <a
-                        href={musicPresence.track.spotifyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1 text-zinc-500 hover:text-[#1DB954] transition-colors"
-                        title="Open in Spotify"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
                     </div>
                   </div>
                 )}
@@ -609,10 +600,10 @@ export default function FriendsPage() {
           <div className="p-4 rounded-xl bg-[#161618] border border-white/10 space-y-3 mt-6">
             <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 flex items-center justify-between">
               <span className="flex items-center gap-1.5">
-                <Disc3 className="w-3.5 h-3.5 text-[#1DB954]" />
+                <Disc3 className="w-3.5 h-3.5 text-purple-400" />
                 Focus Soundtrack & Vibe Comparison
               </span>
-              <span className="text-[10px] text-zinc-500 font-mono">Spotify Live</span>
+              <span className="text-[10px] text-zinc-500 font-mono">Squad Audio Live</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-1">

@@ -241,24 +241,37 @@ export interface MemberAnalytics {
   xpHistory30Days: { date: string; xp: number }[];
 }
 
-export interface SpotifyTrack {
+export interface SongTrack {
   id: string;
   title: string;
   artist: string;
-  album: string;
+  album?: string;
   albumArt: string;
-  spotifyUrl: string;
-  embedUri: string;
+  audioUrl: string;
+  spotifyUrl?: string;
+  embedUri?: string;
   streamUrl?: string;
   durationMs?: number;
+  duration?: number;
   genre?: string;
+  addedBy?: {
+    id: string;
+    name: string;
+    photoURL?: string;
+  };
+  createdAt?: string;
 }
+
+// Backwards compatibility alias
+export type SpotifyTrack = SongTrack;
 
 export interface UserMusicPresence {
   userId: string;
   isPlaying: boolean;
-  track: SpotifyTrack | null;
+  track: SongTrack | null;
   progressMs: number;
+  currentTime?: number;
+  duration?: number;
   listeningWithUserId?: string | null;
   isBroadcasting?: boolean;
   listenersCount?: number;
@@ -271,15 +284,16 @@ export interface FocusStation {
   description: string;
   genre: string;
   coverArt: string;
-  track: SpotifyTrack;
+  track: SongTrack;
 }
 
 export interface FocusRoom {
   meetUrl: string;
   activeMemberIds: string[];
   isGroupListening: boolean;
-  hostTrack: SpotifyTrack | null;
+  hostTrack: SongTrack | null;
   hostUserId?: string | null;
+  hostPosition?: number;
   pomodoro: {
     isActive: boolean;
     mode: "focus" | "break";
@@ -288,3 +302,4 @@ export interface FocusRoom {
     sessionsCompleted: number;
   };
 }
+

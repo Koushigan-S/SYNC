@@ -30,8 +30,12 @@ import {
   Coffee,
   Volume2,
   Share2,
+  Plus,
+  Music2,
+  Trash2,
 } from "lucide-react";
 import { TiltCard } from "@/components/ui/TiltCard";
+import { AddSongModal } from "@/components/music/AddSongModal";
 
 export default function FocusRoomPage() {
   const { currentUser, allUsers, members, tasks, addToast } = useSync();
@@ -42,6 +46,7 @@ export default function FocusRoomPage() {
     listeningWith,
     focusRoom,
     stations,
+    squadSongs,
     togglePlay,
     changeTrack,
     tuneInToMember,
@@ -58,13 +63,14 @@ export default function FocusRoomPage() {
     toggleUserMic,
     toggleUserVideo,
     loadCustomTrack,
+    removeSong,
   } = useMusicMeet();
 
   const [isEditingMeetUrl, setIsEditingMeetUrl] = useState(false);
   const [meetUrlInput, setMeetUrlInput] = useState(focusRoom.meetUrl);
   const [customTrackInput, setCustomTrackInput] = useState("");
   const [copiedLink, setCopiedLink] = useState(false);
-  const [showSpotifyEmbed, setShowSpotifyEmbed] = useState(false);
+  const [isAddSongModalOpen, setIsAddSongModalOpen] = useState(false);
 
   const isInRoom = focusRoom.activeMemberIds.includes(currentUser.id);
 
@@ -140,10 +146,10 @@ export default function FocusRoomPage() {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white mt-2.5">
-              Virtual Co-Working & Spotify Lounge
+              Virtual Co-Working & Squad Music Lounge
             </h1>
             <p className="text-xs sm:text-sm text-zinc-400 mt-1 max-w-2xl">
-              Hop on Google Meet, work to curated focus beats, see what your friends are listening to, and join synchronized Pomodoro sprints with XP rewards.
+              Hop on Google Meet, work to squad-shared focus beats, see what your friends are listening to, and join synchronized Pomodoro sprints with XP rewards.
             </p>
 
             {/* Meet Link Display & Editor */}
@@ -234,7 +240,7 @@ export default function FocusRoomPage() {
         </div>
       </div>
 
-      {/* 2. Main Grid: Co-Working Participant Tiles + Spotify Jukebox / Pomodoro */}
+      {/* 2. Main Grid: Co-Working Participant Tiles + Squad Jukebox / Pomodoro */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left 8 Cols: Squad Video & Participant Grid */}
         <div className="lg:col-span-8 space-y-6">
@@ -383,7 +389,7 @@ export default function FocusRoomPage() {
                     </div>
                   </div>
 
-                  {/* Live Spotify Track & Tune-In Action */}
+                  {/* Live Squad Track & Tune-In Action */}
                   <div className="pt-2 border-t border-white/5 flex items-center justify-between gap-2">
                     {presence?.track ? (
                       <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -400,9 +406,9 @@ export default function FocusRoomPage() {
                             <span className="truncate">{presence.track.title}</span>
                             {/* Animated sound waves */}
                             <span className="flex items-end gap-0.5 h-2.5 shrink-0">
-                              <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-1" />
-                              <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-2" />
-                              <span className="w-0.5 bg-[#1DB954] rounded-full animate-eq-3" />
+                              <span className="w-0.5 bg-purple-400 rounded-full animate-eq-1" />
+                              <span className="w-0.5 bg-purple-400 rounded-full animate-eq-2" />
+                              <span className="w-0.5 bg-purple-400 rounded-full animate-eq-3" />
                             </span>
                           </div>
                           <div className="text-[10px] text-zinc-400 truncate">
@@ -457,28 +463,28 @@ export default function FocusRoomPage() {
             })}
           </div>
 
-          {/* 3. Squad Spotify Jukebox & Station Console */}
+          {/* 3. Squad Shared Jukebox & Music Lounge */}
           <div className="surface-card p-6 border-white/10 space-y-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-white/10">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#1DB954]/20 border border-[#1DB954]/30 flex items-center justify-center text-[#1DB954]">
+                <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
                   <Disc3 className={`w-4 h-4 ${isPlaying ? "animate-spin-slow" : ""}`} />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-white">
-                    Squad Focus Audio & Jukebox
+                    Squad Audio Jukebox & Shared Library
                   </h3>
                   <p className="text-[11px] text-zinc-400">
-                    Live synchronized audio stream. Switch focus stations or control playback.
+                    Live synchronized audio stream. Play squad songs or switch focus stations.
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {/* 1-Click Play / Pause Button for instant audible streaming */}
                 <button
                   onClick={togglePlay}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     isPlaying
                       ? "bg-white text-black border-white shadow-sm"
                       : "bg-white/10 hover:bg-white/20 border-white/20 text-white"
@@ -498,10 +504,19 @@ export default function FocusRoomPage() {
                   )}
                 </button>
 
+                {/* Add Song Button */}
+                <button
+                  onClick={() => setIsAddSongModalOpen(true)}
+                  className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Song</span>
+                </button>
+
                 {/* Mode Switch: Broadcast vs Solo */}
                 <button
                   onClick={toggleGroupListening}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 ${
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
                     focusRoom.isGroupListening
                       ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300 shadow-sm"
                       : "bg-white/5 border-white/10 text-zinc-400 hover:text-white"
@@ -534,121 +549,147 @@ export default function FocusRoomPage() {
 
             {/* SYNC Soundstage Jukebox Console */}
             <div className="rounded-2xl overflow-hidden bg-black/60 border border-white/10 p-5 shadow-xl">
-              {showSpotifyEmbed ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-mono text-zinc-400">Spotify Web Embed Player</span>
-                    <button
-                      type="button"
-                      onClick={() => setShowSpotifyEmbed(false)}
-                      className="text-xs text-zinc-400 hover:text-white px-3 py-1 rounded-lg bg-white/5 hover:bg-white/10 transition-colors"
-                    >
-                      ✕ Return to Jukebox Console
-                    </button>
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
+                <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
+                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 border border-white/15 shadow-2xl">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={currentTrack.albumArt || "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400"}
+                      alt={currentTrack.title}
+                      className={`w-full h-full object-cover transition-transform duration-700 ${
+                        isPlaying ? "scale-105" : "grayscale-[30%]"
+                      }`}
+                    />
+                    {isPlaying && (
+                      <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
+                        <div className="flex items-end gap-1 h-6">
+                          <span className="w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.3s] h-4" />
+                          <span className="w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.15s] h-6" />
+                          <span className="w-1 bg-purple-400 rounded-full animate-bounce h-3" />
+                          <span className="w-1 bg-purple-400 rounded-full animate-bounce [animation-delay:-0.2s] h-5" />
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <iframe
-                    title="Squad Spotify Jukebox Embed"
-                    src={currentTrack.embedUri}
-                    width="100%"
-                    height="180"
-                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                    loading="lazy"
-                    className="rounded-xl border-0 w-full"
-                  />
-                </div>
-              ) : (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-5">
-                  <div className="flex items-center gap-4 min-w-0 w-full sm:w-auto">
-                    <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 border border-white/15 shadow-2xl">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={currentTrack.albumArt || "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400"}
-                        alt={currentTrack.title}
-                        className={`w-full h-full object-cover transition-transform duration-700 ${
-                          isPlaying ? "scale-105" : "grayscale-[30%]"
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                      <span className="px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-xs font-mono border border-purple-500/25">
+                        {currentTrack.genre || "Focus Audio"}
+                      </span>
+                      <span className="text-[11px] font-mono text-zinc-500">
+                        Lossless HTML5 Audio
+                      </span>
+                    </div>
+                    <div className="font-bold text-base sm:text-lg text-white truncate">
+                      {currentTrack.title}
+                    </div>
+                    <div className="text-xs sm:text-sm text-zinc-400 truncate">
+                      {currentTrack.artist}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2">
+                      <span
+                        className={`w-2 h-2 rounded-full ${
+                          isPlaying ? "bg-purple-400 animate-pulse" : "bg-zinc-600"
                         }`}
                       />
-                      {isPlaying && (
-                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center">
-                          <div className="flex items-end gap-1 h-6">
-                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.3s] h-4" />
-                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.15s] h-6" />
-                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce h-3" />
-                            <span className="w-1 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.2s] h-5" />
-                          </div>
-                        </div>
-                      )}
+                      <span className="text-xs text-zinc-400 font-mono">
+                        {isPlaying ? "Live Audio Stream Playing" : "Stream Paused"}
+                      </span>
                     </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-xs font-mono border border-emerald-500/25">
-                          {currentTrack.genre || "Focus Station"}
-                        </span>
-                        <span className="text-[11px] font-mono text-zinc-500">
-                          320kbps Lossless Audio
-                        </span>
-                      </div>
-                      <div className="font-bold text-base sm:text-lg text-white truncate">
-                        {currentTrack.title}
-                      </div>
-                      <div className="text-xs sm:text-sm text-zinc-400 truncate">
-                        {currentTrack.artist}
-                      </div>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            isPlaying ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"
-                          }`}
-                        />
-                        <span className="text-xs text-zinc-400 font-mono">
-                          {isPlaying ? "Live Audio Stream Playing" : "Stream Paused"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-end">
-                    <button
-                      type="button"
-                      onClick={togglePlay}
-                      className="px-4 py-2.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2"
-                    >
-                      {isPlaying ? (
-                        <>
-                          <Pause className="w-3.5 h-3.5 fill-current" />
-                          <span>Pause Audio</span>
-                        </>
-                      ) : (
-                        <>
-                          <Play className="w-3.5 h-3.5 fill-current" />
-                          <span>Play Audio</span>
-                        </>
-                      )}
-                    </button>
-                    {currentTrack.spotifyUrl && (
-                      <a
-                        href={currentTrack.spotifyUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white transition-colors"
-                        title="Open on Spotify Web"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setShowSpotifyEmbed(true)}
-                      className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-400 hover:text-white transition-colors"
-                      title="Load Spotify Embed Player"
-                    >
-                      Embed Widget
-                    </button>
                   </div>
                 </div>
-              )}
+
+                <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-end">
+                  <button
+                    type="button"
+                    onClick={togglePlay}
+                    className="px-4 py-2.5 rounded-xl bg-white text-black text-xs font-bold hover:bg-zinc-200 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    {isPlaying ? (
+                      <>
+                        <Pause className="w-3.5 h-3.5 fill-current" />
+                        <span>Pause Audio</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Play Audio</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
+
+            {/* Shared Squad Songs Section */}
+            {squadSongs.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                    <Music2 className="w-3 h-3" />
+                    Squad Added Songs ({squadSongs.length})
+                  </span>
+                  <button
+                    onClick={() => setIsAddSongModalOpen(true)}
+                    className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Add Another
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {squadSongs.map((track) => {
+                    const isActive = currentTrack.id === track.id;
+                    return (
+                      <div
+                        key={track.id}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex items-center justify-between gap-2.5 group ${
+                          isActive
+                            ? "bg-purple-500/15 border-purple-500/40 text-white shadow-sm"
+                            : "bg-white/5 border-white/5 text-zinc-300 hover:text-white hover:bg-white/10"
+                        }`}
+                      >
+                        <div
+                          onClick={() => changeTrack(track)}
+                          className="flex items-center gap-2.5 min-w-0 flex-1 cursor-pointer"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={track.albumArt || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"}
+                            alt={track.title}
+                            className="w-10 h-10 rounded-lg object-cover shrink-0"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-xs font-semibold text-white truncate">
+                              {track.title}
+                            </div>
+                            <div className="text-[10px] text-zinc-400 truncate">
+                              {track.artist}
+                            </div>
+                            {track.addedBy && (
+                              <div className="text-[9px] text-purple-400/80 truncate">
+                                Added by {track.addedBy.name.split(" ")[0]}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {track.addedBy?.id === currentUser.id && (
+                          <button
+                            onClick={() => removeSong(track.id)}
+                            className="opacity-0 group-hover:opacity-100 p-1.5 rounded hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-opacity cursor-pointer"
+                            title="Remove song"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Focus Stations Carousel / Grid */}
             <div>
@@ -662,9 +703,9 @@ export default function FocusRoomPage() {
                     <button
                       key={station.id}
                       onClick={() => changeTrack(station.track)}
-                      className={`p-2.5 rounded-xl text-left transition-all border ${
+                      className={`p-2.5 rounded-xl text-left transition-all border cursor-pointer ${
                         isActive
-                          ? "bg-white/15 border-white/30 text-white shadow-sm"
+                          ? "bg-purple-500/15 border-purple-500/30 text-white shadow-sm"
                           : "bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
                       }`}
                     >
@@ -680,20 +721,20 @@ export default function FocusRoomPage() {
               </div>
             </div>
 
-            {/* Custom Spotify URL Loader */}
+            {/* Direct Audio URL Loader */}
             <form onSubmit={handleCustomTrackSubmit} className="flex gap-2">
               <input
-                type="text"
+                type="url"
                 value={customTrackInput}
                 onChange={(e) => setCustomTrackInput(e.target.value)}
-                placeholder="Paste any Spotify Track or Playlist link (https://open.spotify.com/...)"
-                className="flex-1 px-3 py-2 rounded-xl bg-black/70 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/30 font-mono"
+                placeholder="Paste direct audio stream URL (https://.../song.mp3 or web radio)"
+                className="flex-1 px-3 py-2 rounded-xl bg-black/70 border border-white/10 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500/40 font-mono"
               />
               <button
                 type="submit"
-                className="px-4 py-2 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-colors shrink-0"
+                className="px-4 py-2 rounded-xl bg-white text-black hover:bg-zinc-200 text-xs font-semibold transition-colors shrink-0 cursor-pointer"
               >
-                Load Audio
+                Play Link
               </button>
             </form>
           </div>
@@ -834,7 +875,7 @@ export default function FocusRoomPage() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
-                <span>Turn on &quot;Squad Broadcast&quot; if everyone wants to jam to the same Spotify playlist.</span>
+                <span>Turn on &quot;Squad Broadcast&quot; if everyone wants to jam to the same focus track.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1.5 shrink-0" />
@@ -844,6 +885,12 @@ export default function FocusRoomPage() {
           </div>
         </div>
       </div>
+
+      {/* Add Song Modal */}
+      <AddSongModal
+        isOpen={isAddSongModalOpen}
+        onClose={() => setIsAddSongModalOpen(false)}
+      />
     </div>
   );
 }

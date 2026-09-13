@@ -10,7 +10,7 @@ import React, {
 } from "react";
 import confetti from "canvas-confetti";
 import {
-  SpotifyTrack,
+  SongTrack,
   UserMusicPresence,
   FocusRoom,
   FocusStation,
@@ -19,31 +19,41 @@ import { CURATED_FOCUS_STATIONS, DEFAULT_MEET_URL } from "@/lib/demo-data";
 import { XP_REWARDS } from "@/lib/constants";
 import { useSync } from "@/context/SyncContext";
 import { db, handleFirestoreQuotaExceeded } from "@/lib/firebase/config";
-import { collection, doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { cleanFirestoreData } from "@/lib/firebase/utils";
 import {
-  getSpotifyCredentials,
-  searchSpotify,
-} from "@/lib/services/spotify-service";
+  addSongToLibrary,
+  deleteSongFromLibrary,
+} from "@/lib/services/music-service";
 
 interface MusicMeetContextType {
-  currentTrack: SpotifyTrack;
+  currentTrack: SongTrack;
   isPlaying: boolean;
   presences: Record<string, UserMusicPresence>;
   listeningWith: string | null;
   focusRoom: FocusRoom;
   stations: FocusStation[];
+  squadSongs: SongTrack[];
+  allAvailableTracks: SongTrack[];
   isDockExpanded: boolean;
   userMicEnabled: boolean;
   userVideoEnabled: boolean;
-  isSpotifyConfigured: boolean;
   volume: number;
   isMuted: boolean;
   isBroadcasting: boolean;
+  currentTime: number;
+  duration: number;
 
   // Actions
   togglePlay: () => void;
-  changeTrack: (track: SpotifyTrack) => void;
+  changeTrack: (track: SongTrack) => void;
+  seekTo: (seconds: number) => void;
   tuneInToMember: (userId: string) => void;
   stopTuneIn: () => void;
   goSolo: () => void;
@@ -59,9 +69,12 @@ interface MusicMeetContextType {
   toggleDockExpanded: () => void;
   setDockExpanded: (expanded: boolean) => void;
   loadCustomTrack: (urlOrUri: string) => boolean;
-  searchTracks: (query: string) => Promise<SpotifyTrack[]>;
+  addNewSong: (song: Omit<SongTrack, "id" | "createdAt">) => Promise<SongTrack>;
+  removeSong: (songId: string) => Promise<void>;
   setVolume: (vol: number) => void;
   toggleMute: () => void;
+  playNextTrack: () => void;
+  playPrevTrack: () => void;
 }
 
 const MusicMeetContext = createContext<MusicMeetContextType | null>(null);
@@ -84,18 +97,21 @@ const DEFAULT_FOCUS_ROOM: FocusRoom = {
 export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const { currentUser, allUsers, currentGroup, addToast, awardXP } = useSync();
 
-  const [currentTrack, setCurrentTrack] = useState<SpotifyTrack>(
+  const [currentTrack, setCurrentTrack] = useState<SongTrack>(
     CURATED_FOCUS_STATIONS[0].track
   );
-  // Default to PAUSED on initial web open as requested
+  // Default to PAUSED on initial web load as per user requirement
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolumeState] = useState<number>(0.8);
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isBroadcasting, setIsBroadcasting] = useState<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
   const [presences, setPresences] = useState<Record<string, UserMusicPresence>>({});
   const [listeningWith, setListeningWith] = useState<string | null>(null);
   const [focusRoom, setFocusRoom] = useState<FocusRoom>(DEFAULT_FOCUS_ROOM);
   const [stations] = useState<FocusStation[]>(CURATED_FOCUS_STATIONS);
+  const [squadSongs, setSquadSongs] = useState<SongTrack[]>([]);
   const [isDockExpanded, setIsDockExpanded] = useState<boolean>(false);
   const [userMicEnabled, setUserMicEnabled] = useState<boolean>(false);
   const [userVideoEnabled, setUserVideoEnabled] = useState<boolean>(true);
@@ -104,7 +120,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Refs to avoid stale closures in Firestore real-time listeners
-  const currentTrackRef = useRef<SpotifyTrack>(currentTrack);
+  const currentTrackRef = useRef<SongTrack>(currentTrack);
   const isPlayingRef = useRef<boolean>(isPlaying);
   const listeningWithRef = useRef<string | null>(listeningWith);
   const lastPresenceWriteKeyRef = useRef<string>("");
@@ -124,20 +140,87 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     listeningWithRef.current = listeningWith;
   }, [listeningWith]);
 
+  // Combined track collection (squad custom songs + curated starter stations)
+  const allAvailableTracks: SongTrack[] = [
+    ...squadSongs,
+    ...stations.map((s) => s.track),
+  ];
+
+  // Initialize native HTML5 Audio element with event listeners
   useEffect(() => {
     if (typeof window === "undefined") return;
+
     const audio = new Audio();
-    audio.preload = "none";
+    audio.preload = "auto";
     audio.loop = true;
     audio.volume = 0.8;
     audioRef.current = audio;
 
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime || 0);
+    };
+
+    const onLoadedMetadata = () => {
+      if (audio.duration && isFinite(audio.duration)) {
+        setDuration(audio.duration);
+      }
+    };
+
+    const onPlay = () => setIsPlaying(true);
+    const onPause = () => setIsPlaying(false);
+
+    const onEnded = () => {
+      // Loop or play next
+      audio.currentTime = 0;
+      audio.play().catch(() => {});
+    };
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("loadedmetadata", onLoadedMetadata);
+    audio.addEventListener("durationchange", onLoadedMetadata);
+    audio.addEventListener("play", onPlay);
+    audio.addEventListener("pause", onPause);
+    audio.addEventListener("ended", onEnded);
+
     return () => {
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      audio.removeEventListener("durationchange", onLoadedMetadata);
+      audio.removeEventListener("play", onPlay);
+      audio.removeEventListener("pause", onPause);
+      audio.removeEventListener("ended", onEnded);
       audio.pause();
       audio.src = "";
       audioRef.current = null;
     };
   }, []);
+
+  // Real-time listener for squad shared songs in Firestore
+  useEffect(() => {
+    if (!currentGroup?.id || currentGroup.id === "default-squad") return;
+
+    const songsColl = collection(db, "groups", currentGroup.id, "songs");
+    const unsub = onSnapshot(
+      songsColl,
+      (snap) => {
+        const loaded: SongTrack[] = [];
+        snap.forEach((d) => {
+          loaded.push({ id: d.id, ...d.data() } as SongTrack);
+        });
+        setSquadSongs(loaded);
+      },
+      (err: any) => {
+        if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
+          quotaExceededRef.current = true;
+          handleFirestoreQuotaExceeded();
+        } else {
+          console.error("Error loading squad songs:", err);
+        }
+      }
+    );
+
+    return () => unsub();
+  }, [currentGroup?.id]);
 
   // Subscribe to real-time Presences in Firestore with reactive auto-follow
   useEffect(() => {
@@ -151,7 +234,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           presMap[d.id] = d.data() as UserMusicPresence;
         });
 
-        // Compute listenersCount client-side dynamically
+        // Compute listenersCount dynamically
         Object.keys(presMap).forEach((uid) => {
           presMap[uid].listenersCount = Object.values(presMap).filter(
             (p) => p.listeningWithUserId === uid
@@ -160,17 +243,37 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
 
         setPresences(presMap);
 
-        // Reactive follow: if we are listening with a teammate, synchronize to their track!
+        // Reactive follow: if we are tuned into a teammate, sync track and playback time!
         const targetHostId = listeningWithRef.current;
         if (targetHostId && presMap[targetHostId]?.track) {
-          const hostTrack = presMap[targetHostId].track;
-          if (hostTrack && hostTrack.id !== currentTrackRef.current?.id) {
-            setCurrentTrack(hostTrack);
-            if (audioRef.current && isPlayingRef.current) {
-              const stream = hostTrack.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
-              if (stream && audioRef.current.src !== stream) {
-                audioRef.current.src = stream;
-                audioRef.current.play().catch(() => {});
+          const hostPresence = presMap[targetHostId];
+          const hostTrack = hostPresence.track;
+          if (hostTrack) {
+            const currentAudio = audioRef.current;
+            const targetAudioUrl = hostTrack.audioUrl || hostTrack.streamUrl;
+
+            // Follow track change
+            if (hostTrack.id !== currentTrackRef.current?.id) {
+              setCurrentTrack(hostTrack);
+              if (currentAudio && targetAudioUrl) {
+                currentAudio.src = targetAudioUrl;
+                if (hostPresence.currentTime) {
+                  currentAudio.currentTime = hostPresence.currentTime;
+                }
+                if (hostPresence.isPlaying) {
+                  currentAudio.play().catch(() => {});
+                }
+              }
+            } else if (currentAudio && hostPresence.currentTime !== undefined) {
+              // Drift correction: if drift > 3.5 seconds, resync time position
+              const drift = Math.abs(currentAudio.currentTime - hostPresence.currentTime);
+              if (drift > 3.5) {
+                currentAudio.currentTime = hostPresence.currentTime;
+              }
+              if (hostPresence.isPlaying && currentAudio.paused) {
+                currentAudio.play().catch(() => {});
+              } else if (!hostPresence.isPlaying && !currentAudio.paused) {
+                currentAudio.pause();
               }
             }
           }
@@ -189,7 +292,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [currentUser?.id, currentGroup?.id]);
 
-  // Subscribe to real-time Focus Room state in Firestore with group sync
+  // Subscribe to real-time Focus Room state in Firestore
   useEffect(() => {
     if (!currentUser?.id || currentUser.id === "guest" || !currentGroup?.id) return;
     const roomRef = doc(db, "groups", currentGroup.id, "room", "focusRoom");
@@ -209,19 +312,16 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           ) {
             if (roomData.hostTrack.id !== currentTrackRef.current?.id) {
               setCurrentTrack(roomData.hostTrack);
-              if (audioRef.current && isPlayingRef.current) {
-                const stream =
-                  roomData.hostTrack.streamUrl ||
-                  CURATED_FOCUS_STATIONS[0].track.streamUrl;
-                if (stream && audioRef.current.src !== stream) {
-                  audioRef.current.src = stream;
+              const targetUrl = roomData.hostTrack.audioUrl || roomData.hostTrack.streamUrl;
+              if (audioRef.current && targetUrl) {
+                if (audioRef.current.src !== targetUrl) {
+                  audioRef.current.src = targetUrl;
                   audioRef.current.play().catch(() => {});
                 }
               }
             }
           }
         } else if (!roomInitAttemptedRef.current && !quotaExceededRef.current) {
-          // Initialize in Firestore once if doesn't exist
           roomInitAttemptedRef.current = true;
           setDoc(roomRef, cleanFirestoreData(DEFAULT_FOCUS_ROOM)).catch((e: any) => {
             if (e?.code === "resource-exhausted" || e?.message?.includes("Quota")) {
@@ -235,7 +335,6 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
           quotaExceededRef.current = true;
           handleFirestoreQuotaExceeded();
-          console.warn("Firestore room subscription paused (daily free quota reached).");
         } else {
           console.error("Error subscribing to focusRoom:", err);
         }
@@ -244,42 +343,47 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     return () => unsub();
   }, [currentUser?.id, currentGroup?.id]);
 
-  // Sync current user's playback state to Firestore presence (debounced, deduplicated, loop-free)
+  // Sync current user's playback state to Firestore presence (debounced & deduplicated)
   useEffect(() => {
     if (!currentUser?.id || currentUser.id === "guest" || !currentGroup?.id) return;
 
-    // Deduplicate payload: only write if actual playback/track/sync parameters changed
     const payloadKey = `${currentUser.id}_${Boolean(isPlaying)}_${currentTrack?.id || "none"}_${listeningWith || "none"}_${Boolean(isBroadcasting)}`;
     if (payloadKey === lastPresenceWriteKeyRef.current) {
       return;
     }
 
-    const cleanTrack = currentTrack
+    const cleanTrack: SongTrack | null = currentTrack
       ? {
           id: currentTrack.id,
-          title: currentTrack.title || "",
-          artist: currentTrack.artist || "",
-          album: currentTrack.album || "",
+          title: currentTrack.title || "Focus Beats",
+          artist: currentTrack.artist || "Squad Music",
+          album: currentTrack.album || "Squad Library",
           albumArt: currentTrack.albumArt || "",
-          spotifyUrl: currentTrack.spotifyUrl || "",
-          embedUri: currentTrack.embedUri || "",
-          streamUrl: currentTrack.streamUrl || "",
-          durationMs: currentTrack.durationMs || 0,
+          audioUrl: currentTrack.audioUrl || currentTrack.streamUrl || "",
+          streamUrl: currentTrack.streamUrl || currentTrack.audioUrl || "",
+          duration: currentTrack.duration || 180,
+          durationMs: currentTrack.durationMs || (currentTrack.duration ? currentTrack.duration * 1000 : 180000),
           genre: currentTrack.genre || "Focus",
+          addedBy: currentTrack.addedBy || undefined,
         }
       : null;
+
+    const currentSecs = Math.round(audioRef.current?.currentTime || 0);
+    const totalSecs = Math.round(audioRef.current?.duration || currentTrack?.duration || 180);
 
     const presenceData: UserMusicPresence = cleanFirestoreData({
       userId: currentUser.id,
       isPlaying: Boolean(isPlaying),
       track: cleanTrack,
-      progressMs: 30000,
+      progressMs: currentSecs * 1000,
+      currentTime: currentSecs,
+      duration: totalSecs,
       listeningWithUserId: listeningWith ? listeningWith : null,
       isBroadcasting: Boolean(isBroadcasting),
       lastUpdated: new Date().toISOString(),
     });
 
-    // Update local in-memory presence immediately so local user sees their own state with zero latency
+    // Update local in-memory presence immediately with zero latency
     setPresences((prev) => ({
       ...prev,
       [currentUser.id]: {
@@ -292,7 +396,6 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
 
     if (quotaExceededRef.current) return;
 
-    // Debounce writes to Firestore by 1500ms to avoid burst requests
     if (presenceDebounceTimerRef.current) {
       clearTimeout(presenceDebounceTimerRef.current);
     }
@@ -305,12 +408,11 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
           quotaExceededRef.current = true;
           handleFirestoreQuotaExceeded();
-          console.warn("Firestore write quota reached. Switched to local in-memory presence mode.");
         } else {
           console.error("Failed to update presence:", err);
         }
       });
-    }, 1500);
+    }, 1200);
 
     return () => {
       if (presenceDebounceTimerRef.current) {
@@ -375,7 +477,6 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
               },
             };
 
-            // Sync to Firestore
             if (currentGroup?.id) {
               updateDoc(
                 doc(db, "groups", currentGroup.id, "room", "focusRoom"),
@@ -436,18 +537,16 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      const stream = currentTrack?.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
-      if (stream) {
-        if (audioRef.current.src !== stream) {
-          audioRef.current.src = stream;
+      const url = currentTrack?.audioUrl || currentTrack?.streamUrl || CURATED_FOCUS_STATIONS[0].track.audioUrl;
+      if (url) {
+        if (audioRef.current.src !== url) {
+          audioRef.current.src = url;
         }
         audioRef.current
           .play()
-          .then(() => {
-            setIsPlaying(true);
-          })
+          .then(() => setIsPlaying(true))
           .catch((err) => {
-            console.warn("Direct stream play interrupted:", err);
+            console.warn("Audio play interrupted:", err);
             setIsPlaying(false);
           });
       } else {
@@ -456,26 +555,32 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isPlaying, currentTrack]);
 
-  const changeTrack = useCallback((track: SpotifyTrack) => {
+  const changeTrack = useCallback((track: SongTrack) => {
     setCurrentTrack(track);
     setListeningWith(null);
 
-    const stream = track.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
-    if (audioRef.current && stream) {
-      if (audioRef.current.src !== stream) {
-        audioRef.current.src = stream;
+    const url = track.audioUrl || track.streamUrl;
+    if (audioRef.current && url) {
+      if (audioRef.current.src !== url) {
+        audioRef.current.src = url;
       }
+      audioRef.current.currentTime = 0;
       audioRef.current
         .play()
-        .then(() => {
-          setIsPlaying(true);
-        })
+        .then(() => setIsPlaying(true))
         .catch((err) => {
           console.warn("Audio changeTrack play error:", err);
           setIsPlaying(false);
         });
     } else {
       setIsPlaying(true);
+    }
+  }, []);
+
+  const seekTo = useCallback((seconds: number) => {
+    if (audioRef.current && isFinite(seconds)) {
+      audioRef.current.currentTime = seconds;
+      setCurrentTime(seconds);
     }
   }, []);
 
@@ -486,7 +591,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       if (!presence || !presence.track) {
         addToast({
           title: "Member is not currently playing",
-          description: "No active track detected for this squad member.",
+          description: "No active song detected for this squad member.",
           type: "error",
         });
         return;
@@ -495,16 +600,17 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       setCurrentTrack(presence.track);
       setListeningWith(targetUserId);
 
-      const stream = presence.track.streamUrl || CURATED_FOCUS_STATIONS[0].track.streamUrl;
-      if (audioRef.current && stream) {
-        if (audioRef.current.src !== stream) {
-          audioRef.current.src = stream;
+      const url = presence.track.audioUrl || presence.track.streamUrl;
+      if (audioRef.current && url) {
+        if (audioRef.current.src !== url) {
+          audioRef.current.src = url;
+        }
+        if (presence.currentTime) {
+          audioRef.current.currentTime = presence.currentTime;
         }
         audioRef.current
           .play()
-          .then(() => {
-            setIsPlaying(true);
-          })
+          .then(() => setIsPlaying(true))
           .catch((err) => {
             console.warn("Audio tuneIn play error:", err);
             setIsPlaying(false);
@@ -703,83 +809,78 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       const trimmed = input.trim();
       if (!trimmed) return false;
 
-      let embedUri = "";
-      let title = "Custom Spotify Stream";
-      let artist = "Spotify Audio";
-
-      const urlMatch = trimmed.match(
-        /spotify\.com\/(track|playlist|album|episode)\/([a-zA-Z0-9]+)/
-      );
-      const uriMatch = trimmed.match(
-        /spotify:(track|playlist|album|episode):([a-zA-Z0-9]+)/
-      );
-
-      if (urlMatch) {
-        const type = urlMatch[1];
-        const id = urlMatch[2];
-        embedUri = `https://open.spotify.com/embed/${type}/${id}?utm_source=generator&theme=0`;
-        title = `Spotify ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-      } else if (uriMatch) {
-        const type = uriMatch[1];
-        const id = uriMatch[2];
-        embedUri = `https://open.spotify.com/embed/${type}/${id}?utm_source=generator&theme=0`;
-        title = `Spotify ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-      } else if (trimmed.startsWith("https://open.spotify.com/embed/")) {
-        embedUri = trimmed;
-      } else {
-        addToast({
-          title: "Invalid Spotify URL",
-          description:
-            "Please paste a valid Spotify link (e.g., https://open.spotify.com/track/... or playlist)",
-          type: "error",
-        });
-        return false;
-      }
-
-      const customTrack: SpotifyTrack = {
+      const customTrack: SongTrack = {
         id: "custom-" + Date.now(),
-        title,
-        artist,
+        title: "Custom Squad Stream",
+        artist: "Direct Audio",
         album: "Squad Session",
         albumArt:
-          "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=300&auto=format&fit=crop&q=80",
-        spotifyUrl: trimmed.startsWith("http")
-          ? trimmed
-          : `https://open.spotify.com/track/${trimmed.split(":")[2] || ""}`,
-        embedUri,
-        streamUrl: CURATED_FOCUS_STATIONS[0].track.streamUrl,
+          "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+        audioUrl: trimmed,
+        streamUrl: trimmed,
         genre: "Custom Audio",
+        duration: 180,
+        addedBy: {
+          id: currentUser.id,
+          name: currentUser.displayName,
+          photoURL: currentUser.photoURL,
+        },
       };
 
-      setCurrentTrack(customTrack);
-      setListeningWith(null);
-
-      if (audioRef.current && customTrack.streamUrl) {
-        if (audioRef.current.src !== customTrack.streamUrl) {
-          audioRef.current.src = customTrack.streamUrl;
-        }
-        audioRef.current
-          .play()
-          .then(() => setIsPlaying(true))
-          .catch(() => setIsPlaying(false));
-      } else {
-        setIsPlaying(true);
-      }
+      changeTrack(customTrack);
 
       addToast({
-        title: "Loaded Spotify Audio",
-        description: "Embedded player updated with your custom link.",
+        title: "Loaded Audio Stream",
+        description: "Direct audio stream is now playing.",
         type: "success",
       });
 
       return true;
     },
-    [addToast]
+    [changeTrack, currentUser, addToast]
   );
 
-  const searchTracks = useCallback(async (query: string): Promise<SpotifyTrack[]> => {
-    return searchSpotify(query);
-  }, []);
+  const addNewSong = useCallback(
+    async (songData: Omit<SongTrack, "id" | "createdAt">): Promise<SongTrack> => {
+      if (!currentGroup?.id) {
+        throw new Error("No active squad found.");
+      }
+      const newSong = await addSongToLibrary(currentGroup.id, songData);
+      setSquadSongs((prev) => [newSong, ...prev]);
+      return newSong;
+    },
+    [currentGroup?.id]
+  );
+
+  const removeSong = useCallback(
+    async (songId: string): Promise<void> => {
+      if (!currentGroup?.id) return;
+      await deleteSongFromLibrary(currentGroup.id, songId);
+      setSquadSongs((prev) => prev.filter((s) => s.id !== songId));
+      addToast({
+        title: "Song Removed",
+        description: "The track has been removed from the squad library.",
+        type: "default",
+      });
+    },
+    [currentGroup?.id, addToast]
+  );
+
+  const playNextTrack = useCallback(() => {
+    const list = allAvailableTracks;
+    if (list.length === 0) return;
+    const currentIndex = list.findIndex((t) => t.id === currentTrack.id);
+    const nextIndex = (currentIndex + 1) % list.length;
+    changeTrack(list[nextIndex]);
+  }, [allAvailableTracks, currentTrack.id, changeTrack]);
+
+  const playPrevTrack = useCallback(() => {
+    const list = allAvailableTracks;
+    if (list.length === 0) return;
+    const currentIndex = list.findIndex((t) => t.id === currentTrack.id);
+    const prevIndex = (currentIndex - 1 + list.length) % list.length;
+    changeTrack(list[prevIndex]);
+  }, [allAvailableTracks, currentTrack.id, changeTrack]);
 
   const setVolume = useCallback((val: number) => {
     const clamped = Math.max(0, Math.min(1, val));
@@ -802,14 +903,6 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const credentials = getSpotifyCredentials();
-  const isSpotifyConfigured = Boolean(
-    credentials.clientId &&
-    credentials.clientSecret &&
-    !credentials.clientId.includes("your_spotify") &&
-    !credentials.clientSecret.includes("your_spotify")
-  );
-
   return (
     <MusicMeetContext.Provider
       value={{
@@ -819,15 +912,19 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         listeningWith,
         focusRoom,
         stations,
+        squadSongs,
+        allAvailableTracks,
         isDockExpanded,
         userMicEnabled,
         userVideoEnabled,
-        isSpotifyConfigured,
         volume,
         isMuted,
         isBroadcasting,
+        currentTime,
+        duration,
         togglePlay,
         changeTrack,
+        seekTo,
         tuneInToMember,
         stopTuneIn,
         goSolo,
@@ -843,9 +940,12 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         toggleDockExpanded,
         setDockExpanded,
         loadCustomTrack,
-        searchTracks,
+        addNewSong,
+        removeSong,
         setVolume,
         toggleMute,
+        playNextTrack,
+        playPrevTrack,
       }}
     >
       {children}

@@ -7,6 +7,7 @@ import React, {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from "react";
 import confetti from "canvas-confetti";
 import {
@@ -25,6 +26,7 @@ import {
   ChallengeMetric,
 } from "@/types";
 import { XP_REWARDS, calculateLevel } from "@/lib/constants";
+import { fetchGitHubStats, fetchLeetCodeStats } from "@/lib/services/sync-service";
 import { auth, db, handleFirestoreQuotaExceeded, isFirestoreQuotaExceeded } from "@/lib/firebase/config";
 import {
   signInWithPopup,
@@ -104,6 +106,7 @@ export interface SyncContextType {
   joinGroupWithCode: (code: string) => Promise<{ success: boolean; message: string }>;
   createGroup: (name: string, description?: string, imageUrl?: string) => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  syncCodingProfiles: (force?: boolean) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   markAllNotificationsRead: () => Promise<void>;
   simulateCodingActivity: (
@@ -967,6 +970,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     async (updates: Partial<UserProfile>) => {
       if (!firebaseUser) return;
       try {
+        // Optimistically apply updates immediately for instant real-time UI reaction
+        setCurrentUserProfile((prev) => (prev ? { ...prev, ...updates } : null));
+
         const cleanUpdates = cleanFirestoreData(updates);
         await updateDoc(doc(db, "users", firebaseUser.uid), cleanUpdates);
 
@@ -999,6 +1005,95 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     },
     [firebaseUser, currentGroupId, addToast]
   );
+
+  // Automatic real-time background sync for GitHub and LeetCode
+  const isSyncingProfilesRef = useRef(false);
+
+  const syncCodingProfiles = useCallback(
+    async (force: boolean = false) => {
+      if (!firebaseUser || !currentUserProfile || isSyncingProfilesRef.current) return;
+
+      const ghHandle = currentUserProfile.githubUsername || currentUserProfile.githubStats?.username;
+      const lcHandle = currentUserProfile.leetcodeUsername || currentUserProfile.leetcodeStats?.username;
+
+      if (!ghHandle && !lcHandle) return;
+
+      // Throttle automatic background sync to once every 2 minutes unless forced
+      const now = Date.now();
+      const lastSync = currentUserProfile.lastSyncedAt
+        ? new Date(currentUserProfile.lastSyncedAt).getTime()
+        : 0;
+      if (!force && now - lastSync < 120000) {
+        return;
+      }
+
+      isSyncingProfilesRef.current = true;
+      try {
+        const updates: Partial<UserProfile> = {
+          lastSyncedAt: new Date().toISOString(),
+        };
+
+        if (ghHandle) {
+          try {
+            const ghStats = await fetchGitHubStats(ghHandle);
+            updates.githubStats = ghStats;
+            updates.githubUsername = ghStats.username;
+          } catch (e) {
+            console.warn("Auto-sync GitHub warning:", e);
+          }
+        }
+
+        if (lcHandle) {
+          try {
+            const lcStats = await fetchLeetCodeStats(lcHandle);
+            updates.leetcodeStats = lcStats;
+            updates.leetcodeUsername = lcStats.username;
+          } catch (e) {
+            console.warn("Auto-sync LeetCode warning:", e);
+          }
+        }
+
+        if (updates.githubStats || updates.leetcodeStats) {
+          await updateProfile(updates);
+        }
+      } catch (err) {
+        console.warn("syncCodingProfiles error:", err);
+      } finally {
+        isSyncingProfilesRef.current = false;
+      }
+    },
+    [firebaseUser, currentUserProfile, updateProfile]
+  );
+
+  // Periodic and on-focus real-time auto-sync
+  useEffect(() => {
+    if (!firebaseUser || !currentUserProfile) return;
+    const gh = currentUserProfile.githubUsername || currentUserProfile.githubStats?.username;
+    const lc = currentUserProfile.leetcodeUsername || currentUserProfile.leetcodeStats?.username;
+    if (!gh && !lc) return;
+
+    // Run live sync immediately
+    syncCodingProfiles();
+
+    // Auto-refresh every 90 seconds
+    const interval = setInterval(() => {
+      syncCodingProfiles();
+    }, 90000);
+
+    // Auto-refresh when user focuses window
+    const onFocus = () => syncCodingProfiles();
+    window.addEventListener("focus", onFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [
+    firebaseUser,
+    currentUserProfile?.githubUsername,
+    currentUserProfile?.leetcodeUsername,
+    syncCodingProfiles,
+  ]);
 
   // Mark Notification Read
   const markNotificationRead = useCallback(
@@ -1283,6 +1378,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         joinGroupWithCode,
         createGroup,
         updateProfile,
+        syncCodingProfiles,
         markNotificationRead,
         markAllNotificationsRead,
         simulateCodingActivity,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSync } from "@/context/SyncContext";
 import { getLevelProgress, XP_REWARDS } from "@/lib/constants";
@@ -142,14 +142,17 @@ export default function SettingsPage() {
   };
 
   // Analyze & Sync GitHub Profile
-  const handleSyncGithub = async () => {
-    const trimmed = githubInput.trim();
+  const handleSyncGithub = async (explicitInput?: string, silent: boolean = false) => {
+    const target = explicitInput !== undefined ? explicitInput : githubInput;
+    const trimmed = target.trim();
     if (!trimmed) {
-      addToast({
-        title: "GitHub link or username required",
-        description: "Please enter your GitHub profile link (e.g. github.com/username) or @handle.",
-        type: "default",
-      });
+      if (!silent) {
+        addToast({
+          title: "GitHub link or username required",
+          description: "Please enter your GitHub profile link (e.g. github.com/username) or @handle.",
+          type: "default",
+        });
+      }
       return;
     }
 
@@ -168,32 +171,39 @@ export default function SettingsPage() {
         lastSyncedAt: new Date().toISOString(),
       });
 
-      addToast({
-        title: "GitHub Profile Analyzed & Synced! 🐙",
-        description: `Loaded @${stats.username} with ${stats.totalContributions || 0} contributions and ${stats.publicRepos || 0} repos. (+${bonusXP} XP)`,
-        type: "success",
-      });
+      if (!silent) {
+        addToast({
+          title: "GitHub Profile Analyzed & Synced! 🐙",
+          description: `Loaded @${stats.username} with ${stats.totalContributions || 0} contributions and ${stats.publicRepos || 0} repos. (+${bonusXP} XP)`,
+          type: "success",
+        });
+      }
     } catch (err: any) {
       console.error(err);
-      addToast({
-        title: "GitHub sync failed",
-        description: err.message || "Could not fetch GitHub profile.",
-        type: "error",
-      });
+      if (!silent) {
+        addToast({
+          title: "GitHub sync failed",
+          description: err.message || "Could not fetch GitHub profile.",
+          type: "error",
+        });
+      }
     } finally {
       setIsSyncingGithub(false);
     }
   };
 
   // Analyze & Sync LeetCode Profile
-  const handleSyncLeetcode = async () => {
-    const trimmed = leetcodeInput.trim();
+  const handleSyncLeetcode = async (explicitInput?: string, silent: boolean = false) => {
+    const target = explicitInput !== undefined ? explicitInput : leetcodeInput;
+    const trimmed = target.trim();
     if (!trimmed) {
-      addToast({
-        title: "LeetCode link or username required",
-        description: "Please enter your LeetCode profile link (e.g. leetcode.com/u/username) or @handle.",
-        type: "default",
-      });
+      if (!silent) {
+        addToast({
+          title: "LeetCode link or username required",
+          description: "Please enter your LeetCode profile link (e.g. leetcode.com/u/username) or @handle.",
+          type: "default",
+        });
+      }
       return;
     }
 
@@ -217,22 +227,66 @@ export default function SettingsPage() {
         lastSyncedAt: new Date().toISOString(),
       });
 
-      addToast({
-        title: "LeetCode Profile Analyzed & Synced! ⚡",
-        description: `Verified ${stats.totalSolved} problems solved for @${stats.username} (Rank #${stats.ranking?.toLocaleString() || "Top"}). (+${xpEarned} XP)`,
-        type: "success",
-      });
+      if (!silent) {
+        addToast({
+          title: "LeetCode Profile Analyzed & Synced! ⚡",
+          description: `Verified ${stats.totalSolved} problems solved for @${stats.username} (Rank #${stats.ranking?.toLocaleString() || "Top"}). (+${xpEarned} XP)`,
+          type: "success",
+        });
+      }
     } catch (err: any) {
       console.error(err);
-      addToast({
-        title: "LeetCode sync failed",
-        description: err.message || "Could not fetch LeetCode profile.",
-        type: "error",
-      });
+      if (!silent) {
+        addToast({
+          title: "LeetCode sync failed",
+          description: err.message || "Could not fetch LeetCode profile.",
+          type: "error",
+        });
+      }
     } finally {
       setIsSyncingLeetcode(false);
     }
   };
+
+  // Automatic sync on mount
+  const hasAutoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoSyncedRef.current) return;
+    hasAutoSyncedRef.current = true;
+    const gh = currentUser.githubStats?.username || currentUser.githubUsername || githubInput;
+    const lc = currentUser.leetcodeStats?.username || currentUser.leetcodeUsername || leetcodeInput;
+    if (gh && gh.trim()) handleSyncGithub(gh, true);
+    if (lc && lc.trim()) handleSyncLeetcode(lc, true);
+  }, []);
+
+  // Automatic debounced sync on user input change
+  useEffect(() => {
+    const trimmed = githubInput.trim();
+    if (
+      !trimmed ||
+      trimmed === currentUser.githubUsername ||
+      trimmed === currentUser.githubStats?.username
+    )
+      return;
+    const timer = setTimeout(() => {
+      handleSyncGithub(trimmed, true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [githubInput]);
+
+  useEffect(() => {
+    const trimmed = leetcodeInput.trim();
+    if (
+      !trimmed ||
+      trimmed === currentUser.leetcodeUsername ||
+      trimmed === currentUser.leetcodeStats?.username
+    )
+      return;
+    const timer = setTimeout(() => {
+      handleSyncLeetcode(trimmed, true);
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [leetcodeInput]);
 
   // Analyze & Sync Both Accounts
   const handleSyncAll = async () => {
@@ -451,6 +505,9 @@ export default function SettingsPage() {
                                 Verified
                               </span>
                             )}
+                            <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Live Auto-Sync
+                            </span>
                           </div>
                           <div className="text-xs text-zinc-400">
                             +2 XP per verified commit / PR
@@ -488,9 +545,9 @@ export default function SettingsPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={handleSyncGithub}
+                            onClick={() => handleSyncGithub(undefined, false)}
                             disabled={isSyncingGithub}
-                            className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             <RefreshCw className={`w-3 h-3 ${isSyncingGithub ? "animate-spin" : ""}`} />
                             <span>{isSyncingGithub ? "Analyzing..." : "Analyze"}</span>
@@ -507,7 +564,7 @@ export default function SettingsPage() {
                                 Total Contributions
                               </div>
                               <div className="text-base font-mono font-bold text-white mt-0.5">
-                                {currentUser.githubStats.totalContributions?.toLocaleString() || "89"}
+                                {currentUser.githubStats.totalContributions?.toLocaleString() ?? "0"}
                               </div>
                             </div>
                             <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 text-center">
@@ -515,7 +572,7 @@ export default function SettingsPage() {
                                 2026 Activity
                               </div>
                               <div className="text-base font-mono font-bold text-emerald-400 mt-0.5">
-                                {currentUser.githubStats.totalContributionsYear || 64}
+                                {currentUser.githubStats.totalContributionsYear ?? 0}
                               </div>
                             </div>
                             <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 text-center">
@@ -523,7 +580,7 @@ export default function SettingsPage() {
                                 Repositories
                               </div>
                               <div className="text-base font-mono font-bold text-white mt-0.5">
-                                {currentUser.githubStats.publicRepos || 21}
+                                {currentUser.githubStats.publicRepos ?? 0}
                               </div>
                             </div>
                             <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 text-center">
@@ -531,7 +588,7 @@ export default function SettingsPage() {
                                 Followers
                               </div>
                               <div className="text-base font-mono font-bold text-white mt-0.5">
-                                {currentUser.githubStats.followers ?? 5}
+                                {currentUser.githubStats.followers ?? 0}
                               </div>
                             </div>
                           </div>
@@ -543,24 +600,33 @@ export default function SettingsPage() {
                               <span className="text-[10px] text-zinc-500 font-normal">Verified Git Activity</span>
                             </div>
                             <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                              <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
-                                <div className="text-[10px] text-emerald-400 font-semibold">2026</div>
-                                <div className="text-xs font-mono font-bold text-white mt-0.5">
-                                  {currentUser.githubStats.contributionsByYear?.["2026"] ?? 64}
-                                </div>
-                              </div>
-                              <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                                <div className="text-[10px] text-zinc-400">2025</div>
-                                <div className="text-xs font-mono font-bold text-white mt-0.5">
-                                  {currentUser.githubStats.contributionsByYear?.["2025"] ?? 24}
-                                </div>
-                              </div>
-                              <div className="p-2 rounded-lg bg-white/5 border border-white/10">
-                                <div className="text-[10px] text-zinc-400">2024</div>
-                                <div className="text-xs font-mono font-bold text-white mt-0.5">
-                                  {currentUser.githubStats.contributionsByYear?.["2024"] ?? 1}
-                                </div>
-                              </div>
+                              {Object.entries(currentUser.githubStats.contributionsByYear || {})
+                                .sort((a, b) => Number(b[0]) - Number(a[0]))
+                                .slice(0, 3)
+                                .map(([year, count]) => {
+                                  const isCurrentYear = year === new Date().getFullYear().toString() || year === "2026";
+                                  return (
+                                    <div
+                                      key={year}
+                                      className={`p-2 rounded-lg ${
+                                        isCurrentYear
+                                          ? "bg-emerald-500/10 border border-emerald-500/20"
+                                          : "bg-white/5 border border-white/10"
+                                      }`}
+                                    >
+                                      <div
+                                        className={`text-[10px] font-semibold ${
+                                          isCurrentYear ? "text-emerald-400" : "text-zinc-400"
+                                        }`}
+                                      >
+                                        {year}
+                                      </div>
+                                      <div className="text-xs font-mono font-bold text-white mt-0.5">
+                                        {count}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                             </div>
                           </div>
 
@@ -631,6 +697,9 @@ export default function SettingsPage() {
                                 Verified
                               </span>
                             )}
+                            <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-mono border border-amber-500/20 flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> Live Auto-Sync
+                            </span>
                           </div>
                           <div className="text-xs text-zinc-400">
                             Easy (+10 XP) • Medium (+25 XP) • Hard (+50 XP)
@@ -661,17 +730,17 @@ export default function SettingsPage() {
                             </span>
                             <input
                               type="text"
-                              value={leetcodeInput.replace(/^https?:\/\/leetcode\.com\/(?:u\/)?/i, "").replace(/^@/, "")}
+                              value={leetcodeInput.replace(/^https?:\/\/leetcode\.com\/(?:u\/)?/i, "").replace(/^u\//i, "").replace(/^@/, "")}
                               onChange={(e) => setLeetcodeInput(e.target.value)}
                               placeholder="username"
-                              className="w-full bg-black/60 border border-white/10 rounded-xl pl-28 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-white/30"
+                              className="w-full bg-black/60 border border-white/10 rounded-xl pl-32 pr-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-white/30"
                             />
                           </div>
                           <button
                             type="button"
-                            onClick={handleSyncLeetcode}
+                            onClick={() => handleSyncLeetcode(undefined, false)}
                             disabled={isSyncingLeetcode}
-                            className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                            className="px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-50 cursor-pointer"
                           >
                             <RefreshCw className={`w-3 h-3 ${isSyncingLeetcode ? "animate-spin" : ""}`} />
                             <span>{isSyncingLeetcode ? "Analyzing..." : "Analyze"}</span>
@@ -688,7 +757,7 @@ export default function SettingsPage() {
                                 Total Solved
                               </div>
                               <div className="text-xl font-mono font-bold text-white mt-0.5">
-                                {currentUser.leetcodeStats.totalSolved}
+                                {currentUser.leetcodeStats.totalSolved ?? 0}
                               </div>
                             </div>
                             <div className="text-right">
@@ -696,7 +765,7 @@ export default function SettingsPage() {
                                 Acceptance Rate
                               </div>
                               <div className="text-sm font-mono font-semibold text-emerald-400 mt-0.5">
-                                {currentUser.leetcodeStats.acceptanceRate || 58.4}%
+                                {currentUser.leetcodeStats.acceptanceRate ? currentUser.leetcodeStats.acceptanceRate.toFixed(1) : "0.0"}%
                               </div>
                             </div>
                           </div>

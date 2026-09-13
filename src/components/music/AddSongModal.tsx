@@ -14,7 +14,11 @@ import {
 } from "lucide-react";
 import { useMusicMeet } from "@/context/MusicMeetContext";
 import { useSync } from "@/context/SyncContext";
-import { uploadSongFile } from "@/lib/services/music-service";
+import {
+  uploadSongFile,
+  extractYouTubeVideoId,
+  fetchYouTubeDetails,
+} from "@/lib/services/music-service";
 
 interface AddSongModalProps {
   isOpen: boolean;
@@ -31,6 +35,7 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
 
   const [activeTab, setActiveTab] = useState<"link" | "upload">("link");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -45,12 +50,35 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
 
   if (!isOpen) return null;
 
+  const handleAudioUrlChange = async (val: string) => {
+    setAudioUrl(val);
+    const ytId = extractYouTubeVideoId(val);
+    if (ytId) {
+      setIsFetchingDetails(true);
+      try {
+        const details = await fetchYouTubeDetails(val);
+        if (details) {
+          if (!title.trim() && details.title) {
+            setTitle(details.title);
+          }
+          if (!artist.trim() && details.author) {
+            setArtist(details.author);
+          }
+        }
+      } catch {
+        // ignore
+      } finally {
+        setIsFetchingDetails(false);
+      }
+    }
+  };
+
   const handleLinkSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !audioUrl.trim()) {
+    if (!audioUrl.trim()) {
       addToast({
-        title: "Missing details",
-        description: "Please enter both a track title and a valid audio link.",
+        title: "Missing audio link",
+        description: "Please enter a valid audio stream or YouTube link.",
         type: "error",
       });
       return;
@@ -58,12 +86,20 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
 
     setIsSubmitting(true);
     try {
+      const ytId = extractYouTubeVideoId(audioUrl);
+      const cleanArt = ytId
+        ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`
+        : DEFAULT_ALBUM_ART;
+
+      const trackTitle = title.trim() || (ytId ? "YouTube Audio Track" : "Audio Track");
+      const trackArtist = artist.trim() || (ytId ? "YouTube Artist" : "Squad Artist");
+
       await addNewSong({
-        title: title.trim(),
-        artist: artist.trim() || "Squad Artist",
+        title: trackTitle,
+        artist: trackArtist,
         album: "Squad Library",
-        genre: "Squad Audio",
-        albumArt: DEFAULT_ALBUM_ART,
+        genre: ytId ? "YouTube Audio" : "Squad Audio",
+        albumArt: cleanArt,
         audioUrl: audioUrl.trim(),
         streamUrl: audioUrl.trim(),
         addedBy: {
@@ -75,7 +111,7 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
 
       addToast({
         title: "🎵 Song Added to Squad Library!",
-        description: `"${title}" is now available to all squad members.`,
+        description: `"${trackTitle}" is now available to all squad members.`,
         type: "success",
       });
 
@@ -250,19 +286,31 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
         {activeTab === "link" && (
           <form onSubmit={handleLinkSubmit} className="mt-4 space-y-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">
-                Audio Stream / MP3 URL <span className="text-purple-400">*</span>
-              </label>
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-medium text-zinc-300">
+                  Audio URL or YouTube Link <span className="text-purple-400">*</span>
+                </label>
+                {extractYouTubeVideoId(audioUrl) ? (
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 border border-red-500/30 font-medium flex items-center gap-1 animate-in fade-in">
+                    ▶ YouTube Audio Detected
+                  </span>
+                ) : null}
+              </div>
               <input
                 type="url"
                 required
-                placeholder="https://example.com/focus-beats.mp3 or web stream"
+                placeholder="Paste MP3/audio stream URL or YouTube link (youtube.com/watch?v=...)"
                 value={audioUrl}
-                onChange={(e) => setAudioUrl(e.target.value)}
+                onChange={(e) => handleAudioUrlChange(e.target.value)}
                 className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60 focus:ring-1 focus:ring-purple-500/60 font-mono"
               />
-              <p className="text-[11px] text-zinc-500 mt-1">
-                Supports direct links to .mp3, .m4a, .wav, or live audio streams.
+              <p className="text-[11px] text-zinc-400 mt-1 flex items-center justify-between">
+                <span>Supports direct audio (.mp3, .wav, streams) &amp; any YouTube video or music link!</span>
+                {isFetchingDetails && (
+                  <span className="text-purple-400 text-[10px] flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Fetching info...
+                  </span>
+                )}
               </p>
             </div>
 

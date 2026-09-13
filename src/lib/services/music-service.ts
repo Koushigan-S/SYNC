@@ -207,3 +207,46 @@ export function formatAudioTime(seconds: number): string {
   const secs = Math.floor(seconds % 60);
   return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
 }
+
+/**
+ * Extract YouTube 11-character video ID from any YouTube URL format.
+ */
+export function extractYouTubeVideoId(url?: string): string | null {
+  if (!url) return null;
+  const regExp =
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/;
+  const match = url.match(regExp);
+  return match ? match[1] : null;
+}
+
+/**
+ * Fetch video title, artist/channel, and thumbnail via public oEmbed API.
+ */
+export async function fetchYouTubeDetails(url: string): Promise<{
+  title?: string;
+  author?: string;
+  thumbnailUrl?: string;
+} | null> {
+  const videoId = extractYouTubeVideoId(url);
+  if (!videoId) return null;
+
+  try {
+    const res = await fetch(
+      `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+    );
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        title: data.title,
+        author: data.author_name,
+        thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      };
+    }
+  } catch {
+    // Ignore network error and return thumbnail fallback
+  }
+
+  return {
+    thumbnailUrl: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+  };
+}

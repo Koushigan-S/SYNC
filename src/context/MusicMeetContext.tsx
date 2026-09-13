@@ -30,7 +30,15 @@ import { cleanFirestoreData } from "@/lib/firebase/utils";
 import {
   addSongToLibrary,
   deleteSongFromLibrary,
+  extractYouTubeVideoId,
 } from "@/lib/services/music-service";
+
+declare global {
+  interface Window {
+    YT: any;
+    onYouTubeIframeAPIReady: any;
+  }
+}
 
 interface MusicMeetContextType {
   currentTrack: SongTrack;
@@ -116,6 +124,10 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
 
   // Persistent HTML5 audio player for instant audible focus sound
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Dedicated YouTube IFrame player for YouTube links
+  const ytPlayerRef = useRef<any>(null);
+  const isYtReadyRef = useRef<boolean>(false);
+  const pendingYtVideoIdRef = useRef<string | null>(null);
 
   // Refs to avoid stale closures in Firestore real-time listeners
   const currentTrackRef = useRef<SongTrack>(currentTrack);
@@ -192,6 +204,116 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       audio.src = "";
       audioRef.current = null;
     };
+  }, []);
+
+  // Initialize YouTube IFrame Player API for seamless YouTube link playback
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (!window.YT) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      const firstScriptTag = document.getElementsByTagName("script")[0];
+      firstScriptTag?.parentNode?.insertBefore(tag, firstScriptTag);
+    }
+
+    const initYT = () => {
+      if (window.YT && window.YT.Player && !ytPlayerRef.current) {
+        try {
+          ytPlayerRef.current = new window.YT.Player("sync-yt-player-host", {
+            height: "120",
+            width: "120",
+            playerVars: {
+              autoplay: 0,
+              controls: 0,
+              disablekb: 1,
+              fs: 0,
+              modestbranding: 1,
+              playsinline: 1,
+            },
+            events: {
+              onReady: (event: any) => {
+                isYtReadyRef.current = true;
+                if (pendingYtVideoIdRef.current) {
+                  event.target.loadVideoById(pendingYtVideoIdRef.current);
+                  event.target.playVideo();
+                  pendingYtVideoIdRef.current = null;
+                } else {
+                  const initialYtId = extractYouTubeVideoId(currentTrackRef.current?.audioUrl);
+                  if (initialYtId) {
+                    event.target.cueVideoById(initialYtId);
+                  }
+                }
+              },
+              onStateChange: (event: any) => {
+                // 1 = playing, 2 = paused, 0 = ended
+                if (event.data === 1) {
+                  setIsPlaying(true);
+                  if (audioRef.current && !audioRef.current.paused) {
+                    audioRef.current.pause();
+                  }
+                } else if (event.data === 2) {
+                  setIsPlaying(false);
+                } else if (event.data === 0) {
+                  event.target.seekTo(0);
+                  event.target.playVideo();
+                }
+              },
+              onError: (err: any) => {
+                console.warn("YouTube audio player error:", err);
+                setIsPlaying(false);
+              },
+            },
+          });
+        } catch (e) {
+          console.warn("Failed to instantiate YouTube player:", e);
+        }
+      }
+    };
+
+    if (window.YT && window.YT.Player) {
+      initYT();
+    } else {
+      const prevOnReady = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (typeof prevOnReady === "function") prevOnReady();
+        initYT();
+      };
+      const interval = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          initYT();
+          clearInterval(interval);
+        }
+      }, 500);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
+  // Periodic time & duration polling for YouTube track
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const ytId = extractYouTubeVideoId(currentTrackRef.current?.audioUrl);
+      if (ytId && ytPlayerRef.current && isYtReadyRef.current) {
+        try {
+          if (typeof ytPlayerRef.current.getCurrentTime === "function") {
+            const cur = ytPlayerRef.current.getCurrentTime();
+            if (typeof cur === "number" && isFinite(cur)) {
+              setCurrentTime(Math.round(cur));
+            }
+          }
+          if (typeof ytPlayerRef.current.getDuration === "function") {
+            const dur = ytPlayerRef.current.getDuration();
+            if (typeof dur === "number" && isFinite(dur) && dur > 0) {
+              setDuration(Math.round(dur));
+            }
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }, 500);
+
+    return () => clearInterval(timer);
   }, []);
 
   // Real-time listener for squad shared songs in Firestore
@@ -535,42 +657,77 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   }, [focusRoom.pomodoro.isActive, currentUser.id, currentGroup?.id, awardXP, addToast]);
 
   const togglePlay = useCallback(() => {
-    if (!audioRef.current) {
-      setIsPlaying((prev) => !prev);
+    let targetTrack = currentTrack;
+    if (
+      (!targetTrack || !targetTrack.audioUrl || targetTrack.id === STANDBY_TRACK.id) &&
+      squadSongs.length > 0
+    ) {
+      targetTrack = squadSongs[0];
+      setCurrentTrack(targetTrack);
+    }
+
+    const url = targetTrack?.audioUrl || targetTrack?.streamUrl;
+    if (!url) {
+      addToast({
+        title: "No song selected",
+        description: "Click '+ Add Song' to add your tracks to the squad library.",
+        type: "default",
+      });
       return;
     }
 
+    const ytVideoId = extractYouTubeVideoId(url);
+
     if (isPlaying) {
-      audioRef.current.pause();
+      // Pause active player
+      if (ytVideoId && ytPlayerRef.current && isYtReadyRef.current) {
+        try {
+          ytPlayerRef.current.pauseVideo();
+        } catch {
+          // ignore
+        }
+      }
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
       setIsPlaying(false);
     } else {
-      let targetTrack = currentTrack;
-      if (
-        (!targetTrack || !targetTrack.audioUrl || targetTrack.id === STANDBY_TRACK.id) &&
-        squadSongs.length > 0
-      ) {
-        targetTrack = squadSongs[0];
-        setCurrentTrack(targetTrack);
-      }
-
-      const url = targetTrack?.audioUrl || targetTrack?.streamUrl;
-      if (url) {
-        if (audioRef.current.src !== url) {
-          audioRef.current.src = url;
+      // Start Playback
+      if (ytVideoId) {
+        if (audioRef.current) {
+          audioRef.current.pause();
         }
-        audioRef.current
-          .play()
-          .then(() => setIsPlaying(true))
-          .catch((err) => {
-            console.warn("Audio play interrupted:", err);
-            setIsPlaying(false);
-          });
+        if (ytPlayerRef.current && isYtReadyRef.current) {
+          try {
+            ytPlayerRef.current.playVideo();
+            setIsPlaying(true);
+          } catch (e) {
+            console.warn("YouTube play error:", e);
+          }
+        } else {
+          pendingYtVideoIdRef.current = ytVideoId;
+          setIsPlaying(true);
+        }
       } else {
-        addToast({
-          title: "No song selected",
-          description: "Click '+ Add Song' to add your tracks to the squad library.",
-          type: "default",
-        });
+        if (ytPlayerRef.current && isYtReadyRef.current) {
+          try {
+            ytPlayerRef.current.pauseVideo();
+          } catch {
+            // ignore
+          }
+        }
+        if (audioRef.current) {
+          if (audioRef.current.src !== url) {
+            audioRef.current.src = url;
+          }
+          audioRef.current
+            .play()
+            .then(() => setIsPlaying(true))
+            .catch((err) => {
+              console.warn("Audio play interrupted:", err);
+              setIsPlaying(false);
+            });
+        }
       }
     }
   }, [isPlaying, currentTrack, squadSongs, addToast]);
@@ -580,25 +737,63 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     setListeningWith(null);
 
     const url = track.audioUrl || track.streamUrl;
-    if (audioRef.current && url) {
-      if (audioRef.current.src !== url) {
-        audioRef.current.src = url;
+    const ytVideoId = extractYouTubeVideoId(url);
+
+    if (ytVideoId) {
+      // Stop HTML5 audio
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = "";
       }
-      audioRef.current.currentTime = 0;
-      audioRef.current
-        .play()
-        .then(() => setIsPlaying(true))
-        .catch((err) => {
-          console.warn("Audio changeTrack play error:", err);
-          setIsPlaying(false);
-        });
+      if (ytPlayerRef.current && isYtReadyRef.current) {
+        try {
+          ytPlayerRef.current.loadVideoById(ytVideoId);
+          ytPlayerRef.current.playVideo();
+          setIsPlaying(true);
+        } catch (e) {
+          console.warn("YouTube loadVideo error:", e);
+        }
+      } else {
+        pendingYtVideoIdRef.current = ytVideoId;
+        setIsPlaying(true);
+      }
+    } else if (url) {
+      // Stop YouTube player
+      if (ytPlayerRef.current && isYtReadyRef.current) {
+        try {
+          ytPlayerRef.current.pauseVideo();
+        } catch {
+          // ignore
+        }
+      }
+      if (audioRef.current) {
+        if (audioRef.current.src !== url) {
+          audioRef.current.src = url;
+        }
+        audioRef.current.currentTime = 0;
+        audioRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn("Audio changeTrack play error:", err);
+            setIsPlaying(false);
+          });
+      }
     } else {
-      setIsPlaying(true);
+      setIsPlaying(false);
     }
   }, []);
 
   const seekTo = useCallback((seconds: number) => {
-    if (audioRef.current && isFinite(seconds)) {
+    const ytVideoId = extractYouTubeVideoId(currentTrackRef.current?.audioUrl);
+    if (ytVideoId && ytPlayerRef.current && isYtReadyRef.current) {
+      try {
+        ytPlayerRef.current.seekTo(seconds, true);
+        setCurrentTime(seconds);
+      } catch {
+        // ignore
+      }
+    } else if (audioRef.current && isFinite(seconds)) {
       audioRef.current.currentTime = seconds;
       setCurrentTime(seconds);
     }
@@ -909,6 +1104,13 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     if (audioRef.current) {
       audioRef.current.volume = clamped;
     }
+    if (ytPlayerRef.current && isYtReadyRef.current) {
+      try {
+        ytPlayerRef.current.setVolume(Math.round(clamped * 100));
+      } catch {
+        // ignore
+      }
+    }
     if (clamped > 0 && isMuted) {
       setIsMuted(false);
     }
@@ -919,6 +1121,17 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       const next = !prev;
       if (audioRef.current) {
         audioRef.current.muted = next;
+      }
+      if (ytPlayerRef.current && isYtReadyRef.current) {
+        try {
+          if (next) {
+            ytPlayerRef.current.mute();
+          } else {
+            ytPlayerRef.current.unMute();
+          }
+        } catch {
+          // ignore
+        }
       }
       return next;
     });
@@ -970,6 +1183,21 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      {/* Invisible YouTube Player host element for background audio streaming */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          right: 0,
+          width: 200,
+          height: 200,
+          opacity: 0.001,
+          pointerEvents: "none",
+          zIndex: -1,
+        }}
+      >
+        <div id="sync-yt-player-host" />
+      </div>
     </MusicMeetContext.Provider>
   );
 }

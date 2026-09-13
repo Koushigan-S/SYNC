@@ -21,39 +21,9 @@ interface AddSongModalProps {
   onClose: () => void;
 }
 
-const PRESET_COVERS = [
-  {
-    name: "Lofi Study",
-    url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    name: "Synthwave Night",
-    url: "https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    name: "Minimalist Piano",
-    url: "https://images.unsplash.com/photo-1520523839898-5071270438a3?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    name: "Cosmic Ambient",
-    url: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=400&auto=format&fit=crop&q=80",
-  },
-  {
-    name: "Cyber Pulse",
-    url: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=400&auto=format&fit=crop&q=80",
-  },
-];
-
-const GENRES = [
-  "Lofi Chill",
-  "Synthwave",
-  "Classical Piano",
-  "Deep Focus",
-  "Electronic Sprint",
-  "Ambient Soundscape",
-  "Hip Hop Beats",
-  "Vocal / Acoustic",
-];
+// Default clean album artwork for squad audio tracks
+const DEFAULT_ALBUM_ART =
+  "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80";
 
 export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
   const { currentGroup, currentUser, addToast } = useSync();
@@ -67,9 +37,6 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [audioUrl, setAudioUrl] = useState("");
-  const [genre, setGenre] = useState(GENRES[0]);
-  const [selectedCover, setSelectedCover] = useState(PRESET_COVERS[0].url);
-  const [customCoverUrl, setCustomCoverUrl] = useState("");
 
   // Upload File
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -90,13 +57,12 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
 
     setIsSubmitting(true);
     try {
-      const coverArt = customCoverUrl.trim() || selectedCover;
       await addNewSong({
         title: title.trim(),
         artist: artist.trim() || "Squad Artist",
         album: "Squad Library",
-        genre,
-        albumArt: coverArt,
+        genre: "Squad Audio",
+        albumArt: DEFAULT_ALBUM_ART,
         audioUrl: audioUrl.trim(),
         streamUrl: audioUrl.trim(),
         addedBy: {
@@ -149,7 +115,6 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
     setUploadProgress(0);
 
     try {
-      const coverArt = customCoverUrl.trim() || selectedCover;
       const trackTitle = title.trim() || selectedFile.name.replace(/\.[^/.]+$/, "");
       const trackArtist = artist.trim() || currentUser.displayName || "Squad Member";
 
@@ -159,8 +124,8 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
         {
           title: trackTitle,
           artist: trackArtist,
-          genre,
-          albumArt: coverArt,
+          genre: "Squad Audio",
+          albumArt: DEFAULT_ALBUM_ART,
           user: {
             id: currentUser.id,
             name: currentUser.displayName,
@@ -216,7 +181,6 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
     setArtist("");
     setAudioUrl("");
     setSelectedFile(null);
-    setCustomCoverUrl("");
     setUploadProgress(0);
     setIsSubmitting(false);
     onClose();
@@ -317,68 +281,12 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g., Kavinsky / Lofi Beats"
+                  placeholder="e.g., Kavinsky / Retro Beats"
                   value={artist}
                   onChange={(e) => setArtist(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60"
                 />
               </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">
-                Genre / Focus Mood
-              </label>
-              <select
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white focus:outline-none focus:border-purple-500/60"
-              >
-                {GENRES.map((g) => (
-                  <option key={g} value={g} className="bg-zinc-900 text-white">
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Cover Art Picker */}
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Cover Art Artwork
-              </label>
-              <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                {PRESET_COVERS.map((cov) => (
-                  <button
-                    key={cov.name}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCover(cov.url);
-                      setCustomCoverUrl("");
-                    }}
-                    className={`relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
-                      selectedCover === cov.url && !customCoverUrl
-                        ? "border-purple-500 ring-2 ring-purple-500/30 scale-105"
-                        : "border-white/10 opacity-70 hover:opacity-100"
-                    }`}
-                    title={cov.name}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={cov.url}
-                      alt={cov.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
-              </div>
-              <input
-                type="url"
-                placeholder="Or paste custom image URL..."
-                value={customCoverUrl}
-                onChange={(e) => setCustomCoverUrl(e.target.value)}
-                className="w-full mt-2 px-3 py-1.5 rounded-lg bg-black/30 border border-white/10 text-xs text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-purple-500/60"
-              />
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-2.5">
@@ -492,55 +400,6 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
                   onChange={(e) => setArtist(e.target.value)}
                   className="w-full px-3.5 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500/60"
                 />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1">
-                Genre / Mood
-              </label>
-              <select
-                value={genre}
-                onChange={(e) => setGenre(e.target.value)}
-                className="w-full px-3.5 py-2 rounded-xl bg-black/50 border border-white/10 text-xs text-white focus:outline-none focus:border-purple-500/60"
-              >
-                {GENRES.map((g) => (
-                  <option key={g} value={g} className="bg-zinc-900 text-white">
-                    {g}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Cover Art Picker */}
-            <div>
-              <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-                Cover Art Artwork
-              </label>
-              <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                {PRESET_COVERS.map((cov) => (
-                  <button
-                    key={cov.name}
-                    type="button"
-                    onClick={() => {
-                      setSelectedCover(cov.url);
-                      setCustomCoverUrl("");
-                    }}
-                    className={`relative w-12 h-12 rounded-xl overflow-hidden shrink-0 border-2 transition-all ${
-                      selectedCover === cov.url && !customCoverUrl
-                        ? "border-purple-500 ring-2 ring-purple-500/30 scale-105"
-                        : "border-white/10 opacity-70 hover:opacity-100"
-                    }`}
-                    title={cov.name}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={cov.url}
-                      alt={cov.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                ))}
               </div>
             </div>
 

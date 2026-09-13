@@ -1005,7 +1005,7 @@ export default function SettingsPage() {
                                     {song.title}
                                   </div>
                                   <div className="text-[11px] text-zinc-400 truncate">
-                                    {song.artist} • {song.genre || "Focus"}
+                                    {song.artist}
                                   </div>
                                   {song.addedBy && (
                                     <div className="text-[10px] text-purple-400/80 truncate">

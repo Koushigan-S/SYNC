@@ -575,7 +575,7 @@ export default function FocusRoomPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                       <span className="px-2.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-xs font-mono border border-purple-500/25">
-                        {currentTrack.genre || "Focus Audio"}
+                        Squad Audio
                       </span>
                       <span className="text-[11px] font-mono text-zinc-500">
                         Lossless HTML5 Audio

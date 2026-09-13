@@ -615,8 +615,8 @@ export default function FriendsPage() {
                 <div className="text-xs font-semibold text-white truncate">
                   {presences[effectiveAId]?.track?.title || "Ambient Silence"}
                 </div>
-                <div className="text-[10px] text-zinc-400">
-                  Genre: {presences[effectiveAId]?.track?.genre || "Deep Focus"}
+                <div className="text-[10px] text-zinc-400 truncate">
+                  By {presences[effectiveAId]?.track?.artist || "Squad Artist"}
                 </div>
                 {presences[effectiveAId]?.track && effectiveAId !== currentUser?.id && (
                   <button
@@ -637,8 +637,8 @@ export default function FriendsPage() {
                 <div className="text-xs font-semibold text-white truncate">
                   {presences[effectiveBId]?.track?.title || "Ambient Silence"}
                 </div>
-                <div className="text-[10px] text-zinc-400">
-                  Genre: {presences[effectiveBId]?.track?.genre || "Deep Focus"}
+                <div className="text-[10px] text-zinc-400 truncate">
+                  By {presences[effectiveBId]?.track?.artist || "Squad Artist"}
                 </div>
                 {presences[effectiveBId]?.track && effectiveBId !== currentUser?.id && (
                   <button

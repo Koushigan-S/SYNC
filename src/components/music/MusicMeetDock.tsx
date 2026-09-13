@@ -557,7 +557,7 @@ export function MusicMeetDock() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 mb-1">
                         <span className="px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 text-[10px] font-mono border border-purple-500/20">
-                          {currentTrack.genre || "Focus Station"}
+                          Squad Audio
                         </span>
                         <span className="text-[10px] font-mono text-zinc-500">
                           Native HTML5 Audio

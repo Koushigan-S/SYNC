@@ -62,9 +62,30 @@ export async function uploadSongFile(
   });
 
   const downloadUrl = await new Promise<string>((resolve, reject) => {
+    let hasTransferredBytes = false;
+
+    // Safety timeout: if storage doesn't respond or is not enabled, fail cleanly instead of hanging
+    const timeoutId = setTimeout(() => {
+      if (!hasTransferredBytes) {
+        try {
+          uploadTask.cancel();
+        } catch {
+          // ignore
+        }
+        reject(
+          new Error(
+            "Firebase Storage is not enabled yet in this project. Please click 'Get Started' in Firebase Console > Storage, or use the Direct Audio URL tab."
+          )
+        );
+      }
+    }, 12000);
+
     uploadTask.on(
       "state_changed",
       (snapshot) => {
+        if (snapshot.bytesTransferred > 0) {
+          hasTransferredBytes = true;
+        }
         if (onProgress && snapshot.totalBytes > 0) {
           const pct = Math.round(
             (snapshot.bytesTransferred / snapshot.totalBytes) * 100
@@ -72,8 +93,28 @@ export async function uploadSongFile(
           onProgress(pct);
         }
       },
-      (error) => reject(error),
+      (error) => {
+        clearTimeout(timeoutId);
+        const msg = error?.message || "";
+        if (
+          msg.includes("CORS") ||
+          msg.includes("preflight") ||
+          msg.includes("404") ||
+          error.code === "storage/unknown" ||
+          error.code === "storage/retry-limit-exceeded" ||
+          error.code === "storage/canceled"
+        ) {
+          reject(
+            new Error(
+              "Firebase Storage is not enabled or bucket not found. Please click 'Get Started' in Firebase Console > Storage, or use the Direct Audio URL tab."
+            )
+          );
+        } else {
+          reject(error);
+        }
+      },
       async () => {
+        clearTimeout(timeoutId);
         const url = await getDownloadURL(uploadTask.snapshot.ref);
         resolve(url);
       }

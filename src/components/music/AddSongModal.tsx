@@ -32,6 +32,7 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
   const [activeTab, setActiveTab] = useState<"link" | "upload">("link");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Form Fields
   const [title, setTitle] = useState("");
@@ -113,6 +114,7 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
 
     setIsSubmitting(true);
     setUploadProgress(0);
+    setUploadError(null);
 
     try {
       const trackTitle = title.trim() || selectedFile.name.replace(/\.[^/.]+$/, "");
@@ -144,11 +146,13 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
       resetAndClose();
     } catch (err: any) {
       console.error("Audio upload failed:", err);
+      const errMsg =
+        err?.message ||
+        "Could not upload file. Ensure Firebase Storage is enabled or use the Direct Audio URL tab.";
+      setUploadError(errMsg);
       addToast({
         title: "Upload failed",
-        description:
-          err?.message ||
-          "Could not upload file. Ensure it is a valid audio format under 50MB.",
+        description: errMsg,
         type: "error",
       });
     } finally {
@@ -171,6 +175,7 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
     }
 
     setSelectedFile(file);
+    setUploadError(null);
     if (!title) {
       setTitle(file.name.replace(/\.[^/.]+$/, ""));
     }
@@ -182,6 +187,7 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
     setAudioUrl("");
     setSelectedFile(null);
     setUploadProgress(0);
+    setUploadError(null);
     setIsSubmitting(false);
     onClose();
   };
@@ -322,6 +328,40 @@ export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
         {/* TAB 2: Audio File Upload */}
         {activeTab === "upload" && (
           <form onSubmit={handleUploadSubmit} className="mt-4 space-y-4">
+            {uploadError && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-xs text-amber-200 space-y-2 animate-in fade-in duration-200">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <div className="font-semibold text-amber-300">Firebase Storage Setup Required</div>
+                    <p className="text-[11px] text-zinc-300 leading-relaxed">
+                      Firebase Storage is not enabled on project <code className="text-amber-300 font-mono">sync-4517e</code> yet. Open Firebase Console to enable it, or use the Direct Audio URL tab!
+                    </p>
+                    <div className="pt-1 flex items-center gap-2 flex-wrap">
+                      <a
+                        href="https://console.firebase.google.com/project/sync-4517e/storage"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-[11px] font-semibold transition-colors"
+                      >
+                        Open Firebase Console &gt; Storage ↗
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTab("link");
+                          setUploadError(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[11px] font-semibold transition-colors cursor-pointer"
+                      >
+                        Use Direct Audio URL Instead
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* File Dropzone */}
             <div
               onClick={() => fileInputRef.current?.click()}

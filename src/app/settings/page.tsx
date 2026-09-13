@@ -569,7 +569,7 @@ export default function SettingsPage() {
                             </div>
                             <div className="p-2.5 rounded-xl bg-black/40 border border-white/5 text-center">
                               <div className="text-[10px] text-zinc-500 uppercase tracking-wider">
-                                2026 Activity
+                                {new Date().getFullYear()} Activity
                               </div>
                               <div className="text-base font-mono font-bold text-emerald-400 mt-0.5">
                                 {currentUser.githubStats.totalContributionsYear ?? 0}
@@ -604,7 +604,7 @@ export default function SettingsPage() {
                                 .sort((a, b) => Number(b[0]) - Number(a[0]))
                                 .slice(0, 3)
                                 .map(([year, count]) => {
-                                  const isCurrentYear = year === new Date().getFullYear().toString() || year === "2026";
+                                  const isCurrentYear = year === new Date().getFullYear().toString();
                                   return (
                                     <div
                                       key={year}

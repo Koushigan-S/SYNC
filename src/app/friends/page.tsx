@@ -45,22 +45,22 @@ export default function FriendsPage() {
     monthlyXP: 0,
     rank: 1,
     rankMovement: 0,
-    streak: currentUser?.streak?.current || 1,
+    streak: currentUser?.streak?.current || 0,
     tasksCompleted: 0,
-    consistencyScore: 50,
+    consistencyScore: 0,
     leetcode: {
       username: currentUser?.username || "user",
       totalSolved: 0,
       easy: 0,
       medium: 0,
       hard: 0,
-      ranking: 100000,
+      ranking: 0,
       recentSubmissions: [],
     },
     github: {
       username: currentUser?.username || "user",
       totalContributionsYear: 0,
-      currentStreak: currentUser?.streak?.current || 1,
+      currentStreak: currentUser?.streak?.current || 0,
       contributionsByWeek: Array.from({ length: 16 }, () =>
         Array.from({ length: 7 }, () => 0)
       ),

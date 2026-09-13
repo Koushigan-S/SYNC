@@ -329,86 +329,121 @@ export default function SchedulePage() {
       {/* Week Calendar Grid */}
       {currentView === "week" && (
         <div className="surface-card p-6">
-          <div className="grid grid-cols-7 gap-2">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => (
-              <div
-                key={d}
-                className="p-3 rounded-xl bg-[#161618] border border-white/5 min-h-[160px] flex flex-col justify-between"
-              >
-                <div>
-                  <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-                    {d}
-                  </div>
-                  <div className="text-xs font-mono text-zinc-500 mt-0.5">
-                    Sept {8 + i}
-                  </div>
-                </div>
-
-                <div className="space-y-1 mt-2">
-                  {i === 3 && (
-                    <div className="p-1.5 rounded-lg bg-white/10 border border-white/15 text-[10px] text-white">
-                      ETM Review
-                    </div>
-                  )}
-                  {i === 3 && (
-                    <div className="p-1.5 rounded-lg bg-white/10 border border-white/15 text-[10px] text-white">
-                      DBMS 3NF
-                    </div>
-                  )}
-                  {i === 4 && (
-                    <div className="p-1.5 rounded-lg bg-white/5 text-[10px] text-zinc-300">
-                      System Arch
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Month Calendar Grid */}
-      {currentView === "month" && (
-        <div className="surface-card p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-white">
-              September 2026
-            </h3>
-            <span className="text-xs text-zinc-500">30 Days</span>
-          </div>
-
-          <div className="grid grid-cols-7 gap-1.5 text-center">
-            {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-              <div key={i} className="text-[10px] text-zinc-500 font-semibold py-1">
-                {d}
-              </div>
-            ))}
-            {Array.from({ length: 30 }, (_, i) => {
-              const dayNum = i + 1;
-              const hasTask = dayNum === 10 || dayNum === 11 || dayNum === 12;
-              const isCurrent = dayNum === 11;
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-2">
+            {Array.from({ length: 7 }, (_, i) => {
+              const d = new Date();
+              const day = d.getDay();
+              const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+              const weekDate = new Date(d.setDate(diff + i));
+              const dateStr = weekDate.toISOString().split("T")[0];
+              const dayName = weekDate.toLocaleDateString("en-US", { weekday: "short" });
+              const monthDay = weekDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+              const isToday = dateStr === todayStr;
+              const daysTasks = filteredTasks.filter((t) => t.scheduledDate === dateStr);
 
               return (
                 <div
-                  key={dayNum}
-                  className={`p-2 rounded-xl text-xs flex flex-col items-center justify-center min-h-[46px] border ${
-                    isCurrent
-                      ? "bg-white text-black font-semibold border-white"
-                      : hasTask
-                      ? "bg-[#1c1c1e] text-white border-white/10"
-                      : "bg-[#141416]/50 text-zinc-500 border-white/5"
+                  key={dateStr}
+                  className={`p-3 rounded-xl border min-h-[160px] flex flex-col justify-between ${
+                    isToday
+                      ? "bg-white/10 border-white/25 ring-1 ring-white/10"
+                      : "bg-[#161618] border-white/5"
                   }`}
                 >
-                  <span>{dayNum}</span>
-                  {hasTask && !isCurrent && (
-                    <span className="w-1 h-1 rounded-full bg-emerald-400 mt-1" />
-                  )}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-[11px] font-semibold uppercase tracking-wider ${isToday ? "text-white" : "text-zinc-400"}`}>
+                        {dayName}
+                      </span>
+                      {isToday && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      )}
+                    </div>
+                    <div className="text-xs font-mono text-zinc-500 mt-0.5">
+                      {monthDay}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5 mt-2 flex-1">
+                    {daysTasks.length === 0 ? (
+                      <div className="h-full flex items-center justify-center text-[10px] text-zinc-600">
+                        No tasks
+                      </div>
+                    ) : (
+                      daysTasks.map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => setSelectedTask(t)}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-zinc-200 cursor-pointer truncate transition-colors"
+                          title={t.title}
+                        >
+                          {t.title}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      {/* Month Calendar Grid */}
+      {currentView === "month" && (() => {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const monthName = now.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+        return (
+          <div className="surface-card p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">
+                {monthName}
+              </h3>
+              <span className="text-xs text-zinc-500">{daysInMonth} Days</span>
+            </div>
+
+            <div className="grid grid-cols-7 gap-1.5 text-center">
+              {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+                <div key={i} className="text-[10px] text-zinc-500 font-semibold py-1">
+                  {d}
+                </div>
+              ))}
+              {Array.from({ length: daysInMonth }, (_, i) => {
+                const dayNum = i + 1;
+                const d = new Date(year, month, dayNum);
+                const dateStr = d.toISOString().split("T")[0];
+                const dayTasks = tasks.filter((t) => t.scheduledDate === dateStr);
+                const isCurrent = dateStr === todayStr;
+
+                return (
+                  <div
+                    key={dayNum}
+                    onClick={() => {
+                      if (dayTasks.length > 0) setSelectedTask(dayTasks[0]);
+                    }}
+                    className={`p-2 rounded-xl text-xs flex flex-col items-center justify-center min-h-[46px] border transition-colors ${
+                      isCurrent
+                        ? "bg-white text-black font-semibold border-white"
+                        : dayTasks.length > 0
+                        ? "bg-[#1c1c1e] text-white border-white/15 hover:border-white/30 cursor-pointer"
+                        : "bg-[#141416]/50 text-zinc-500 border-white/5"
+                    }`}
+                  >
+                    <span>{dayNum}</span>
+                    {dayTasks.length > 0 && !isCurrent && (
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 mt-1" />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Task Details Modal */}
       <TaskDetailModal

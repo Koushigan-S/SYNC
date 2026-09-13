@@ -90,9 +90,9 @@ export default function DashboardPage() {
 
   // Dynamic Weekly XP calculation for current user
   const userWeeklyXP =
-    userAnalytics?.weeklyXP ||
-    userAnalytics?.xpHistory7Days?.reduce((acc, curr) => acc + curr.xp, 0) ||
-    Math.round(currentUser.totalXP * 0.25);
+    userAnalytics?.weeklyXP ??
+    userAnalytics?.xpHistory7Days?.reduce((acc, curr) => acc + curr.xp, 0) ??
+    0;
 
   // Dynamic Top Performer / Most Improved Member
   const membersWithGains = members

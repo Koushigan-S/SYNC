@@ -39,7 +39,11 @@ export default function AnalyticsPage() {
     "#3f3f46", // Zinc-700
   ];
 
-  const days7 = ["Fri", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"];
+  const days7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return d.toLocaleDateString("en-US", { weekday: "short" });
+  });
   const days30 = ["Day 5", "Day 10", "Day 15", "Day 20", "Day 25", "Day 30"];
   const trendDates = range === "7d" ? days7 : days30;
 
@@ -51,18 +55,7 @@ export default function AnalyticsPage() {
       const memberName = (m.userSnapshot?.displayName || memData?.displayName || "Member").split(" ")[0];
       const history = range === "7d" ? memData?.xpHistory7Days : memData?.xpHistory30Days;
       const historyItem = history?.[dIdx];
-
-      let val = 0;
-      if (historyItem) {
-        val = historyItem.xp;
-      } else {
-        const total = m.userSnapshot?.totalXP || 100;
-        val =
-          range === "7d"
-            ? Math.round(total * (0.05 + dIdx * 0.03))
-            : Math.round(total * ((dIdx + 1) / trendDates.length));
-      }
-      point[memberName] = val;
+      point[memberName] = historyItem?.xp || 0;
     });
     return point;
   });
@@ -72,57 +65,66 @@ export default function AnalyticsPage() {
     const memData = analytics[m.userId];
     return {
       name: (m.userSnapshot?.displayName || "Member").split(" ")[0],
-      tasks: m.userSnapshot?.tasksCompleted || 0,
+      tasks: m.userSnapshot?.tasksCompleted || memData?.tasksCompleted || 0,
       leetcode: memData?.leetcode?.totalSolved || 0,
-      streak: m.userSnapshot?.streak || 1,
+      streak: m.userSnapshot?.streak || memData?.streak || 0,
     };
   });
 
   // Personal vs Group Average computed dynamically
   const myAnalytics = analytics[currentUser.id];
-  const myStreak = currentUser.streak?.current || 1;
+  const myStreak = currentUser.streak?.current || 0;
   const myTotalXP = currentUser.totalXP || 0;
   const myTasks = participants.filter((p) => p.userId === currentUser.id && p.completed).length;
   const myLeetcode = myAnalytics?.leetcode?.totalSolved || currentUser.leetcodeStats?.totalSolved || 0;
-  const myGithub = myAnalytics?.github?.totalContributionsYear || currentUser.githubStats?.totalContributions || 0;
+  const myGithub = myAnalytics?.github?.totalContributionsYear || currentUser.githubStats?.totalContributionsYear || 0;
 
-  const squadStreaks = members.map((m) => m.userSnapshot?.streak || 1);
-  const avgStreak = Math.max(1, Math.round(squadStreaks.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+  const squadStreaks = members.map((m) => analytics[m.userId]?.streak || m.userSnapshot?.streak || 0);
+  const avgStreak = Math.round(squadStreaks.reduce((a, b) => a + b, 0) / Math.max(members.length, 1));
 
-  const squadTasks = members.map((m) => m.userSnapshot?.tasksCompleted || 0);
-  const avgTasks = Math.max(0, Math.round(squadTasks.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+  const squadTasks = members.map((m) => analytics[m.userId]?.tasksCompleted || m.userSnapshot?.tasksCompleted || 0);
+  const avgTasks = Math.round(squadTasks.reduce((a, b) => a + b, 0) / Math.max(members.length, 1));
 
   const squadLeet = members.map((m) => analytics[m.userId]?.leetcode?.totalSolved || 0);
-  const avgLeet = Math.max(0, Math.round(squadLeet.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+  const avgLeet = Math.round(squadLeet.reduce((a, b) => a + b, 0) / Math.max(members.length, 1));
 
-  const squadXP = members.map((m) => m.userSnapshot?.totalXP || 0);
-  const avgXP = Math.max(1, Math.round(squadXP.reduce((a, b) => a + b, 0) / Math.max(members.length, 1)));
+  const squadGithub = members.map((m) => analytics[m.userId]?.github?.totalContributionsYear || 0);
+  const avgGithub = Math.round(squadGithub.reduce((a, b) => a + b, 0) / Math.max(members.length, 1));
+
+  const squadConsistency = members.map((m) => analytics[m.userId]?.consistencyScore || 0);
+  const avgConsistency = Math.round(squadConsistency.reduce((a, b) => a + b, 0) / Math.max(members.length, 1));
+
+  const myAssigned = participants.filter((p) => p.userId === currentUser.id);
+  const myCompletionRate = myAssigned.length > 0 ? Math.round((myTasks / myAssigned.length) * 100) : 0;
+  const squadAssigned = participants.length;
+  const squadCompleted = participants.filter((p) => p.completed).length;
+  const squadCompletionRate = squadAssigned > 0 ? Math.round((squadCompleted / squadAssigned) * 100) : 0;
 
   const radarComparisonData = [
     {
       metric: "Consistency Score",
-      You: myAnalytics?.consistencyScore || Math.min(100, myStreak * 5 + 35),
-      SquadAverage: Math.min(100, Math.round(avgStreak * 5 + 30)),
+      You: myAnalytics?.consistencyScore || Math.min(100, myStreak * 5),
+      SquadAverage: avgConsistency,
     },
     {
       metric: "Task Completion Rate",
-      You: Math.min(100, Math.max(25, myTasks > 0 ? 85 : 45)),
-      SquadAverage: Math.min(100, Math.max(25, avgTasks > 0 ? 75 : 40)),
+      You: myCompletionRate,
+      SquadAverage: squadCompletionRate,
     },
     {
       metric: "LeetCode Velocity",
-      You: Math.min(100, Math.max(20, Math.round(myLeetcode * 2.8))),
-      SquadAverage: Math.min(100, Math.max(20, Math.round(avgLeet * 2.8))),
+      You: Math.min(100, Math.round(myLeetcode * 2.5)),
+      SquadAverage: Math.min(100, Math.round(avgLeet * 2.5)),
     },
     {
       metric: "Git & Code Activity",
-      You: Math.min(100, Math.max(25, Math.round((myGithub / 100) * 80))),
-      SquadAverage: 65,
+      You: Math.min(100, Math.round((myGithub / 100) * 100)),
+      SquadAverage: Math.min(100, Math.round((avgGithub / 100) * 100)),
     },
     {
       metric: "Streak Endurance",
-      You: Math.min(100, Math.max(20, myStreak * 9)),
-      SquadAverage: Math.min(100, Math.max(20, avgStreak * 9)),
+      You: Math.min(100, myStreak * 10),
+      SquadAverage: Math.min(100, avgStreak * 10),
     },
   ];
 

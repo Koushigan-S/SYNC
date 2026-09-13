@@ -1177,6 +1177,23 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const analytics: Record<string, MemberAnalytics> = useMemo(() => {
     const result: Record<string, MemberAnalytics> = {};
 
+    // Generate real-time last 7 days calendar metadata ending today
+    const days7Meta = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      const dateStr = d.toISOString().split("T")[0];
+      const dayLabel = d.toLocaleDateString("en-US", { weekday: "short" });
+      return { dateStr, dayLabel };
+    });
+
+    // Generate real-time 30-day milestones ending today
+    const days30Meta = [5, 10, 15, 20, 25, 30].map((daysAgo) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (30 - daysAgo));
+      const dateStr = d.toISOString().split("T")[0];
+      return { dateStr, label: `Day ${daysAgo}` };
+    });
+
     members.forEach((m, idx) => {
       const user = allUsers[m.userId] || {
         ...FALLBACK_USER,
@@ -1186,14 +1203,54 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         level: m.userSnapshot?.level || 1,
       };
 
+      // Real completed tasks count
       const userCompletedTasks = tasks.filter(
         (t) =>
           t.assignedParticipantIds?.includes(m.userId) &&
           participants.some((p) => p.taskId === t.id && p.userId === m.userId && p.completed)
       ).length;
 
-      const streak = user.streak?.current || m.userSnapshot?.streak || 1;
-      const consistency = Math.min(100, Math.round(streak * 4 + userCompletedTasks * 3 + 25));
+      // Real 7-day and 30-day task completion & XP history
+      const userCompletedTaskEntries = tasks
+        .filter((t) =>
+          participants.some((p) => p.taskId === t.id && p.userId === m.userId && p.completed)
+        )
+        .map((t) => ({
+          date: t.scheduledDate,
+          xp: t.xpReward || 0,
+        }));
+
+      const xpHistory7Days = days7Meta.map(({ dateStr, dayLabel }) => {
+        const matchingTasks = userCompletedTaskEntries.filter((item) => item.date === dateStr);
+        const earnedXP = matchingTasks.reduce((acc, curr) => acc + curr.xp, 0);
+        return {
+          date: dayLabel,
+          xp: earnedXP,
+          tasks: matchingTasks.length,
+        };
+      });
+
+      const realWeeklyXP = xpHistory7Days.reduce((acc, curr) => acc + curr.xp, 0);
+
+      const xpHistory30Days = days30Meta.map(({ dateStr, label }) => {
+        const cumTasks = userCompletedTaskEntries.filter((item) => item.date <= dateStr);
+        const cumXP = cumTasks.reduce((acc, curr) => acc + curr.xp, 0);
+        return {
+          date: label,
+          xp: cumXP,
+        };
+      });
+
+      const realMonthlyXP = userCompletedTaskEntries
+        .filter((item) => {
+          const past30 = new Date();
+          past30.setDate(past30.getDate() - 30);
+          return item.date >= past30.toISOString().split("T")[0];
+        })
+        .reduce((acc, curr) => acc + curr.xp, 0);
+
+      const streak = user.streak?.current || m.userSnapshot?.streak || 0;
+      const consistency = Math.min(100, Math.round(streak * 5 + userCompletedTasks * 5));
 
       result[m.userId] = {
         userId: m.userId,
@@ -1202,8 +1259,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         photoURL: user.photoURL,
         level: user.level,
         totalXP: user.totalXP,
-        weeklyXP: m.userSnapshot?.weeklyXP || Math.round(user.totalXP * 0.25),
-        monthlyXP: m.userSnapshot?.monthlyXP || Math.round(user.totalXP * 0.75),
+        weeklyXP: m.userSnapshot?.weeklyXP || realWeeklyXP,
+        monthlyXP: m.userSnapshot?.monthlyXP || realMonthlyXP,
         rank: idx + 1,
         rankMovement: 0,
         streak,
@@ -1217,79 +1274,60 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               medium: user.leetcodeStats.medium,
               hard: user.leetcodeStats.hard,
               ranking: user.leetcodeStats.ranking,
-              recentSubmissions:
-                user.leetcodeStats.recentSubmissions && user.leetcodeStats.recentSubmissions.length > 0
-                  ? user.leetcodeStats.recentSubmissions
-                  : [
-                      { title: "Two Sum", timestamp: "Recently", difficulty: "Easy" },
-                      { title: "Valid Parentheses", timestamp: "Recently", difficulty: "Easy" },
-                    ],
+              recentSubmissions: user.leetcodeStats.recentSubmissions || [],
             }
           : {
               username: user.leetcodeUsername || user.username,
-              totalSolved: Math.round(user.totalXP / 25),
-              easy: Math.round(user.totalXP / 50),
-              medium: Math.round(user.totalXP / 70),
-              hard: Math.round(user.totalXP / 200),
-              ranking: 50000,
-              recentSubmissions: [
-                { title: "Two Sum", timestamp: "Recently", difficulty: "Easy" },
-                { title: "Valid Parentheses", timestamp: "Recently", difficulty: "Easy" },
-              ],
+              totalSolved: 0,
+              easy: 0,
+              medium: 0,
+              hard: 0,
+              ranking: 0,
+              recentSubmissions: [],
             },
         github: user.githubStats
           ? {
               username: user.githubStats.username,
-              totalContributionsYear: user.githubStats.totalContributions,
+              totalContributionsYear: user.githubStats.totalContributionsYear ?? user.githubStats.totalContributions ?? 0,
               currentStreak: user.githubStats.currentStreak || streak,
-              contributionsByWeek: Array.from({ length: 16 }, (_, i) =>
-                Array.from({ length: 7 }, (_, j) => ((i * 3 + j * 2) % 5 > 1 ? 1 : 0))
-              ),
-              recentCommits:
-                user.githubStats.recentCommits && user.githubStats.recentCommits.length > 0
-                  ? user.githubStats.recentCommits
-                  : [
-                      {
-                        repo: `${user.githubStats.username}/sync-progress`,
-                        message: "feat: sync live updates",
-                        timestamp: "Recently",
-                      },
-                    ],
+              contributionsByWeek:
+                user.githubStats.contributionsByWeek && user.githubStats.contributionsByWeek.length > 0
+                  ? user.githubStats.contributionsByWeek
+                  : Array.from({ length: 16 }, () => Array(7).fill(0)),
+              recentCommits: user.githubStats.recentCommits || [],
             }
           : {
               username: user.githubUsername || user.username,
-              totalContributionsYear: Math.round(user.totalXP / 10),
-              currentStreak: streak,
-              contributionsByWeek: Array.from({ length: 16 }, (_, i) =>
-                Array.from({ length: 7 }, (_, j) => ((i * 3 + j * 2) % 5 > 2 ? 1 : 0))
-              ),
-              recentCommits: [
-                {
-                  repo: `${user.username}/sync-progress`,
-                  message: "feat: sync live updates",
-                  timestamp: "Recently",
-                },
-              ],
+              totalContributionsYear: 0,
+              currentStreak: 0,
+              contributionsByWeek: Array.from({ length: 16 }, () => Array(7).fill(0)),
+              recentCommits: [],
             },
-        xpHistory7Days: [
-          { date: "Fri", xp: Math.round(user.totalXP * 0.08), tasks: 1 },
-          { date: "Sat", xp: Math.round(user.totalXP * 0.12), tasks: 2 },
-          { date: "Sun", xp: Math.round(user.totalXP * 0.15), tasks: 2 },
-          { date: "Mon", xp: Math.round(user.totalXP * 0.18), tasks: 3 },
-          { date: "Tue", xp: Math.round(user.totalXP * 0.14), tasks: 2 },
-          { date: "Wed", xp: Math.round(user.totalXP * 0.2), tasks: 3 },
-          { date: "Thu", xp: Math.round(user.totalXP * 0.13), tasks: 2 },
-        ],
-        xpHistory30Days: [
-          { date: "Day 5", xp: Math.round(user.totalXP * 0.15) },
-          { date: "Day 15", xp: Math.round(user.totalXP * 0.45) },
-          { date: "Day 30", xp: user.totalXP },
-        ],
+        xpHistory7Days,
+        xpHistory30Days,
       };
     });
 
     // Ensure currentUser is present in analytics even if member list is syncing
     if (currentUser?.id && !result[currentUser.id]) {
+      const userCompletedTaskEntries = tasks
+        .filter((t) =>
+          participants.some((p) => p.taskId === t.id && p.userId === currentUser.id && p.completed)
+        )
+        .map((t) => ({
+          date: t.scheduledDate,
+          xp: t.xpReward || 0,
+        }));
+
+      const xpHistory7Days = days7Meta.map(({ dateStr, dayLabel }) => {
+        const matchingTasks = userCompletedTaskEntries.filter((item) => item.date === dateStr);
+        return {
+          date: dayLabel,
+          xp: matchingTasks.reduce((acc, curr) => acc + curr.xp, 0),
+          tasks: matchingTasks.length,
+        };
+      });
+
       result[currentUser.id] = {
         userId: currentUser.id,
         displayName: currentUser.displayName,
@@ -1297,13 +1335,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         photoURL: currentUser.photoURL,
         level: currentUser.level,
         totalXP: currentUser.totalXP,
-        weeklyXP: 0,
+        weeklyXP: xpHistory7Days.reduce((acc, curr) => acc + curr.xp, 0),
         monthlyXP: 0,
         rank: 1,
         rankMovement: 0,
         streak: currentUser.streak.current,
         tasksCompleted: 0,
-        consistencyScore: 50,
+        consistencyScore: Math.min(100, currentUser.streak.current * 5),
         leetcode: currentUser.leetcodeStats
           ? {
               username: currentUser.leetcodeStats.username,
@@ -1320,33 +1358,28 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               easy: 0,
               medium: 0,
               hard: 0,
-              ranking: 100000,
+              ranking: 0,
               recentSubmissions: [],
             },
         github: currentUser.githubStats
           ? {
               username: currentUser.githubStats.username,
-              totalContributionsYear: currentUser.githubStats.totalContributions,
+              totalContributionsYear: currentUser.githubStats.totalContributionsYear ?? currentUser.githubStats.totalContributions ?? 0,
               currentStreak: currentUser.githubStats.currentStreak || currentUser.streak.current,
-              contributionsByWeek: Array.from({ length: 16 }, () => Array.from({ length: 7 }, () => 1)),
+              contributionsByWeek:
+                currentUser.githubStats.contributionsByWeek && currentUser.githubStats.contributionsByWeek.length > 0
+                  ? currentUser.githubStats.contributionsByWeek
+                  : Array.from({ length: 16 }, () => Array(7).fill(0)),
               recentCommits: currentUser.githubStats.recentCommits || [],
             }
           : {
               username: currentUser.githubUsername || currentUser.username,
               totalContributionsYear: 0,
               currentStreak: currentUser.streak.current,
-              contributionsByWeek: Array.from({ length: 16 }, () => Array.from({ length: 7 }, () => 0)),
+              contributionsByWeek: Array.from({ length: 16 }, () => Array(7).fill(0)),
               recentCommits: [],
             },
-        xpHistory7Days: [
-          { date: "Fri", xp: 0, tasks: 0 },
-          { date: "Sat", xp: 0, tasks: 0 },
-          { date: "Sun", xp: 0, tasks: 0 },
-          { date: "Mon", xp: 0, tasks: 0 },
-          { date: "Tue", xp: 0, tasks: 0 },
-          { date: "Wed", xp: 0, tasks: 0 },
-          { date: "Thu", xp: 0, tasks: 0 },
-        ],
+        xpHistory7Days,
         xpHistory30Days: [],
       };
     }

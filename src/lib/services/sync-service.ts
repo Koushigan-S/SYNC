@@ -24,7 +24,7 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     login: username,
     public_repos: 0,
     followers: 0,
-    avatar_url: `https://avatars.githubusercontent.com/u/186184644?v=4`,
+    avatar_url: `https://avatars.githubusercontent.com/${username}`,
   };
 
   try {
@@ -36,18 +36,21 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     console.warn("GitHub user fetch warning:", err);
   }
 
-  // 2. Fetch live contributions from github-contributions-api
+  // 2. Fetch live contributions from github-contributions-api (both all-time totals and last-year daily calendar)
   let totalContributions = 0;
   const currentYearStr = new Date().getFullYear().toString();
   let totalContributionsYear = 0;
   let contributionsByYear: Record<string, number> = {};
+  let dailyContributions: Array<{ date: string; count: number; level: number }> = [];
 
   try {
-    const contribRes = await fetch(
-      `https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(username)}?y=all`
-    );
-    if (contribRes.ok) {
-      const contribData = await contribRes.json();
+    const [allTimeRes, lastYearRes] = await Promise.allSettled([
+      fetch(`https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(username)}?y=all`),
+      fetch(`https://github-contributions-api.jogruber.de/v4/${encodeURIComponent(username)}?y=last`),
+    ]);
+
+    if (allTimeRes.status === "fulfilled" && allTimeRes.value.ok) {
+      const contribData = await allTimeRes.value.json();
       if (contribData.total && typeof contribData.total === "object") {
         contributionsByYear = contribData.total;
         totalContributionsYear =
@@ -60,20 +63,47 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
         ) as number;
       }
     }
+
+    if (lastYearRes.status === "fulfilled" && lastYearRes.value.ok) {
+      const lastYearData = await lastYearRes.value.json();
+      if (Array.isArray(lastYearData.contributions)) {
+        dailyContributions = lastYearData.contributions;
+      }
+    }
   } catch (e) {
     console.warn("GitHub contributions API warning:", e);
   }
 
-  // If contributions API failed or returned 0, fall back to calculating from public repos
-  if (totalContributions === 0 && userData.public_repos > 0) {
-    totalContributions = userData.public_repos * 4;
-    totalContributionsYear = Math.round(totalContributions * 0.8);
-    contributionsByYear = {
-      [currentYearStr]: totalContributionsYear,
-    };
+  // 3. Compute real-time streak from daily contributions
+  let currentStreak = 0;
+  if (dailyContributions.length > 0) {
+    let i = dailyContributions.length - 1;
+    // If today has 0 contributions so far, check starting from yesterday
+    if (dailyContributions[i]?.count === 0 && i > 0) {
+      i--;
+    }
+    while (i >= 0 && dailyContributions[i]?.count > 0) {
+      currentStreak++;
+      i--;
+    }
   }
 
-  // 3. Fetch real live recent commits
+  // 4. Compute real-time 16-week contributions grid (16 weeks x 7 days)
+  let contributionsByWeek: number[][] = [];
+  if (dailyContributions.length >= 7) {
+    const last112Days = dailyContributions.slice(-112);
+    const weeks: number[][] = [];
+    for (let w = 0; w < last112Days.length; w += 7) {
+      const chunk = last112Days.slice(w, w + 7).map((d) => (d.count > 0 ? d.count : 0));
+      while (chunk.length < 7) chunk.push(0);
+      weeks.push(chunk);
+    }
+    contributionsByWeek = weeks;
+  } else {
+    contributionsByWeek = Array.from({ length: 16 }, () => Array(7).fill(0));
+  }
+
+  // 5. Fetch real live recent commits from user's active repositories
   let recentCommits: Array<{ repo: string; message: string; timestamp: string }> = [];
 
   try {
@@ -83,7 +113,6 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     if (eventsRes.ok) {
       const events = await eventsRes.json();
       if (Array.isArray(events) && events.length > 0) {
-        // Collect unique repos with PushEvents
         const pushRepos = Array.from(
           new Set(
             events
@@ -92,7 +121,6 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
           )
         );
 
-        // Fetch latest commits from the top active repo
         if (pushRepos.length > 0) {
           const topRepo = pushRepos[0];
           try {
@@ -128,9 +156,6 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     console.warn("GitHub commits fetch error:", err);
   }
 
-  // 4. Calculate current active streak
-  const currentStreak = Math.max(1, Math.min(30, recentCommits.length > 0 ? recentCommits.length + 1 : 1));
-
   return {
     username: userData.login || username,
     publicRepos: Number(userData.public_repos) || 0,
@@ -138,6 +163,7 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     totalContributions,
     totalContributionsYear,
     contributionsByYear,
+    contributionsByWeek,
     currentStreak,
     recentCommits,
     avatarUrl: userData.avatar_url || `https://avatars.githubusercontent.com/${username}`,
@@ -182,15 +208,15 @@ export async function fetchLeetCodeStats(rawInput: string): Promise<LeetCodeStat
             }))
           : [];
 
-        // Acceptance rate calculation
+        // Live acceptance rate calculation from total submissions
         const allSubmission = Array.isArray(data.totalSubmissions)
           ? data.totalSubmissions.find((s: any) => s.difficulty === "All")
           : null;
         const totalSubCount = allSubmission?.submissions || data.totalSolved || 1;
         const acCount = allSubmission?.count || data.totalSolved || 0;
-        const acceptanceRate = Number(
-          Math.min(100, Math.max(1, (acCount / Math.max(1, totalSubCount)) * 100)).toFixed(1)
-        );
+        const acceptanceRate = totalSubCount > 0
+          ? Number(Math.min(100, Math.max(0, (acCount / totalSubCount) * 100)).toFixed(1))
+          : 0;
 
         stats = {
           username,
@@ -198,8 +224,8 @@ export async function fetchLeetCodeStats(rawInput: string): Promise<LeetCodeStat
           easy: Number(data.easySolved ?? 0),
           medium: Number(data.mediumSolved ?? 0),
           hard: Number(data.hardSolved ?? 0),
-          ranking: Number(data.ranking ?? 3587605),
-          acceptanceRate: acceptanceRate || 61.5,
+          ranking: Number(data.ranking ?? 0),
+          acceptanceRate,
           recentSubmissions,
           lastUpdated: new Date().toISOString(),
         };
@@ -243,7 +269,7 @@ export async function fetchLeetCodeStats(rawInput: string): Promise<LeetCodeStat
             medium: Number(data.mediumSolved ?? 0),
             hard: Number(data.hardSolved ?? 0),
             ranking: Number(data.ranking ?? 0),
-            acceptanceRate: Number(data.acceptanceRate ?? 61.5),
+            acceptanceRate: Number(data.acceptanceRate ?? 0),
             recentSubmissions,
             lastUpdated: new Date().toISOString(),
           };

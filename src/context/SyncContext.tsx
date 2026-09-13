@@ -973,6 +973,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         // Optimistically apply updates immediately for instant real-time UI reaction
         setCurrentUserProfile((prev) => (prev ? { ...prev, ...updates } : null));
 
+        // Ensure no nested arrays are ever passed in githubStats
+        if (updates.githubStats && (updates.githubStats as any).contributionsByWeek) {
+          delete (updates.githubStats as any).contributionsByWeek;
+        }
+
         const cleanUpdates = cleanFirestoreData(updates);
         await updateDoc(doc(db, "users", firebaseUser.uid), cleanUpdates);
 
@@ -1290,10 +1295,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               username: user.githubStats.username,
               totalContributionsYear: user.githubStats.totalContributionsYear ?? user.githubStats.totalContributions ?? 0,
               currentStreak: user.githubStats.currentStreak || streak,
-              contributionsByWeek:
-                user.githubStats.contributionsByWeek && user.githubStats.contributionsByWeek.length > 0
-                  ? user.githubStats.contributionsByWeek
-                  : Array.from({ length: 16 }, () => Array(7).fill(0)),
+              contributionsByWeek: (() => {
+                const history = user.githubStats.contributionsHistory || [];
+                const weeks: number[][] = [];
+                for (let w = 0; w < 16; w++) {
+                  const slice = history.slice(w * 7, w * 7 + 7);
+                  while (slice.length < 7) slice.push(0);
+                  weeks.push(slice);
+                }
+                return weeks;
+              })(),
               recentCommits: user.githubStats.recentCommits || [],
             }
           : {
@@ -1366,10 +1377,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
               username: currentUser.githubStats.username,
               totalContributionsYear: currentUser.githubStats.totalContributionsYear ?? currentUser.githubStats.totalContributions ?? 0,
               currentStreak: currentUser.githubStats.currentStreak || currentUser.streak.current,
-              contributionsByWeek:
-                currentUser.githubStats.contributionsByWeek && currentUser.githubStats.contributionsByWeek.length > 0
-                  ? currentUser.githubStats.contributionsByWeek
-                  : Array.from({ length: 16 }, () => Array(7).fill(0)),
+              contributionsByWeek: (() => {
+                const history = currentUser.githubStats.contributionsHistory || [];
+                const weeks: number[][] = [];
+                for (let w = 0; w < 16; w++) {
+                  const slice = history.slice(w * 7, w * 7 + 7);
+                  while (slice.length < 7) slice.push(0);
+                  weeks.push(slice);
+                }
+                return weeks;
+              })(),
               recentCommits: currentUser.githubStats.recentCommits || [],
             }
           : {

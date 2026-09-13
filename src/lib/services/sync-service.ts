@@ -88,19 +88,16 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     }
   }
 
-  // 4. Compute real-time 16-week contributions grid (16 weeks x 7 days)
-  let contributionsByWeek: number[][] = [];
-  if (dailyContributions.length >= 7) {
+  // 4. Compute real-time 112-day (16 weeks x 7 days) flat contributions history (1D array)
+  const contributionsHistory: number[] = [];
+  if (dailyContributions.length > 0) {
     const last112Days = dailyContributions.slice(-112);
-    const weeks: number[][] = [];
-    for (let w = 0; w < last112Days.length; w += 7) {
-      const chunk = last112Days.slice(w, w + 7).map((d) => (d.count > 0 ? d.count : 0));
-      while (chunk.length < 7) chunk.push(0);
-      weeks.push(chunk);
-    }
-    contributionsByWeek = weeks;
-  } else {
-    contributionsByWeek = Array.from({ length: 16 }, () => Array(7).fill(0));
+    last112Days.forEach((d) => {
+      contributionsHistory.push(d.count > 0 ? d.count : 0);
+    });
+  }
+  while (contributionsHistory.length < 112) {
+    contributionsHistory.unshift(0);
   }
 
   // 5. Fetch real live recent commits from user's active repositories
@@ -163,7 +160,7 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     totalContributions,
     totalContributionsYear,
     contributionsByYear,
-    contributionsByWeek,
+    contributionsHistory,
     currentStreak,
     recentCommits,
     avatarUrl: userData.avatar_url || `https://avatars.githubusercontent.com/${username}`,

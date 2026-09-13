@@ -160,8 +160,9 @@ export default function SettingsPage() {
     try {
       const stats = await fetchGitHubStats(trimmed);
 
-      // Award bonus XP for verified coding activity sync
-      const bonusXP = Math.min(stats.totalContributions || 20, 100);
+      // Award bonus XP on first verified coding activity sync
+      const isFirstSync = !currentUser.githubStats;
+      const bonusXP = isFirstSync ? Math.min(stats.totalContributions || 20, 100) : 0;
       const newTotalXP = (currentUser.totalXP || 0) + bonusXP;
 
       await updateProfile({
@@ -211,13 +212,16 @@ export default function SettingsPage() {
     try {
       const stats = await fetchLeetCodeStats(trimmed);
 
-      // Calculate XP bonus based on solved problems
-      const xpEarned = Math.min(
-        stats.easy * XP_REWARDS.LEETCODE_EASY +
-        stats.medium * XP_REWARDS.LEETCODE_MEDIUM +
-        stats.hard * XP_REWARDS.LEETCODE_HARD,
-        250
-      );
+      // Calculate XP bonus based on solved problems on first sync
+      const isFirstSync = !currentUser.leetcodeStats;
+      const xpEarned = isFirstSync
+        ? Math.min(
+            stats.easy * XP_REWARDS.LEETCODE_EASY +
+              stats.medium * XP_REWARDS.LEETCODE_MEDIUM +
+              stats.hard * XP_REWARDS.LEETCODE_HARD,
+            250
+          )
+        : 0;
       const newTotalXP = (currentUser.totalXP || 0) + xpEarned;
 
       await updateProfile({
@@ -248,16 +252,25 @@ export default function SettingsPage() {
     }
   };
 
-  // Automatic sync on mount
-  const hasAutoSyncedRef = useRef(false);
+  // Automatic real-time sync on load when user coding profiles are available
+  const hasAutoSyncedGithubRef = useRef(false);
+  const hasAutoSyncedLeetcodeRef = useRef(false);
+
   useEffect(() => {
-    if (hasAutoSyncedRef.current) return;
-    hasAutoSyncedRef.current = true;
     const gh = currentUser.githubStats?.username || currentUser.githubUsername || githubInput;
+    if (gh && gh.trim() && !hasAutoSyncedGithubRef.current) {
+      hasAutoSyncedGithubRef.current = true;
+      handleSyncGithub(gh, true);
+    }
+  }, [currentUser.githubUsername, currentUser.githubStats?.username, githubInput]);
+
+  useEffect(() => {
     const lc = currentUser.leetcodeStats?.username || currentUser.leetcodeUsername || leetcodeInput;
-    if (gh && gh.trim()) handleSyncGithub(gh, true);
-    if (lc && lc.trim()) handleSyncLeetcode(lc, true);
-  }, []);
+    if (lc && lc.trim() && !hasAutoSyncedLeetcodeRef.current) {
+      hasAutoSyncedLeetcodeRef.current = true;
+      handleSyncLeetcode(lc, true);
+    }
+  }, [currentUser.leetcodeUsername, currentUser.leetcodeStats?.username, leetcodeInput]);
 
   // Automatic debounced sync on user input change
   useEffect(() => {

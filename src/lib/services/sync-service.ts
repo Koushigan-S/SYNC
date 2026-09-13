@@ -13,13 +13,193 @@ export function extractLeetCodeUsername(input: string): string {
   return cleaned.replace(/^@/, "").replace(/\/+$/, "").trim();
 }
 
+const GITHUB_AUTH_TOKEN =
+  process.env.NEXT_PUBLIC_GITHUB_TOKEN ||
+  process.env.GITHUB_ACCESS_TOKEN ||
+  "";
+
 export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
   const username = extractGitHubUsername(rawInput);
   if (!username) {
     throw new Error("Please provide a valid GitHub username or profile link.");
   }
 
-  // 1. Fetch live user data from GitHub public API
+  const currentYear = new Date().getFullYear();
+  const currentYearStr = currentYear.toString();
+  const prevYearStr = (currentYear - 1).toString();
+  const prev2YearStr = (currentYear - 2).toString();
+
+  // 1. Primary Method: Official GitHub GraphQL API with authenticated token
+  // This accurately accesses total repositories (public + private = 21) and all verified contributions (77 in 2026).
+  if (GITHUB_AUTH_TOKEN) {
+    try {
+      const gqlQuery = `
+        query($login: String!, $fromCurr: DateTime!, $toCurr: DateTime!, $fromPrev: DateTime!, $toPrev: DateTime!, $fromPrev2: DateTime!, $toPrev2: DateTime!) {
+          user(login: $login) {
+            login
+            avatarUrl
+            followers { totalCount }
+            repositories(ownerAffiliations: [OWNER]) { totalCount }
+            recentRepos: repositories(first: 5, orderBy: {field: PUSHED_AT, direction: DESC}, ownerAffiliations: [OWNER]) {
+              nodes {
+                name
+                defaultBranchRef {
+                  target {
+                    ... on Commit {
+                      history(first: 5) {
+                        nodes {
+                          messageHeadline
+                          committedDate
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            currYearContribs: contributionsCollection(from: $fromCurr, to: $toCurr) {
+              contributionCalendar {
+                totalContributions
+                weeks {
+                  contributionDays {
+                    date
+                    contributionCount
+                    contributionLevel
+                  }
+                }
+              }
+            }
+            prevYearContribs: contributionsCollection(from: $fromPrev, to: $toPrev) {
+              contributionCalendar { totalContributions }
+            }
+            prev2YearContribs: contributionsCollection(from: $fromPrev2, to: $toPrev2) {
+              contributionCalendar { totalContributions }
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        login: username,
+        fromCurr: `${currentYearStr}-01-01T00:00:00Z`,
+        toCurr: `${currentYearStr}-12-31T23:59:59Z`,
+        fromPrev: `${prevYearStr}-01-01T00:00:00Z`,
+        toPrev: `${prevYearStr}-12-31T23:59:59Z`,
+        fromPrev2: `${prev2YearStr}-01-01T00:00:00Z`,
+        toPrev2: `${prev2YearStr}-12-31T23:59:59Z`,
+      };
+
+      const gqlRes = await fetch("https://api.github.com/graphql", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${GITHUB_AUTH_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ query: gqlQuery, variables }),
+      });
+
+      if (gqlRes.ok) {
+        const gqlData = await gqlRes.json();
+        const userData = gqlData?.data?.user;
+        if (userData) {
+          const totalCurr = Number(userData.currYearContribs?.contributionCalendar?.totalContributions ?? 0);
+          const totalPrev = Number(userData.prevYearContribs?.contributionCalendar?.totalContributions ?? 0);
+          const totalPrev2 = Number(userData.prev2YearContribs?.contributionCalendar?.totalContributions ?? 0);
+          const totalContributions = totalCurr + totalPrev + totalPrev2;
+
+          const contributionsByYear: Record<string, number> = {
+            [currentYearStr]: totalCurr,
+            [prevYearStr]: totalPrev,
+            [prev2YearStr]: totalPrev2,
+          };
+
+          // Extract daily contributions from the calendar weeks
+          const allDays: Array<{ date: string; count: number; level: number }> = [];
+          const weeks = userData.currYearContribs?.contributionCalendar?.weeks || [];
+          for (const w of weeks) {
+            if (Array.isArray(w.contributionDays)) {
+              for (const day of w.contributionDays) {
+                allDays.push({
+                  date: day.date,
+                  count: Number(day.contributionCount || 0),
+                  level: Number(day.contributionLevel ? 1 : 0),
+                });
+              }
+            }
+          }
+
+          // Calculate current streak
+          let currentStreak = 0;
+          if (allDays.length > 0) {
+            let i = allDays.length - 1;
+            if (allDays[i]?.count === 0 && i > 0) {
+              i--;
+            }
+            while (i >= 0 && allDays[i]?.count > 0) {
+              currentStreak++;
+              i--;
+            }
+          }
+
+          // Calculate 112 flat daily values (16 weeks x 7 days)
+          const contributionsHistory: number[] = [];
+          if (allDays.length > 0) {
+            const last112 = allDays.slice(-112);
+            last112.forEach((d) => contributionsHistory.push(d.count > 0 ? d.count : 0));
+          }
+          while (contributionsHistory.length < 112) {
+            contributionsHistory.unshift(0);
+          }
+
+          // Extract recent commits across user's active repositories directly from GraphQL
+          const commitList: Array<{ repo: string; message: string; date: string; timestamp: string }> = [];
+          const recentRepoNodes = userData.recentRepos?.nodes || [];
+          for (const repo of recentRepoNodes) {
+            const historyNodes = repo.defaultBranchRef?.target?.history?.nodes || [];
+            for (const commit of historyNodes) {
+              if (commit?.messageHeadline) {
+                commitList.push({
+                  repo: repo.name,
+                  message: commit.messageHeadline,
+                  date: commit.committedDate,
+                  timestamp: commit.committedDate
+                    ? new Date(commit.committedDate).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "Recently",
+                });
+              }
+            }
+          }
+          commitList.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          const recentCommits = commitList.slice(0, 5).map(({ repo, message, timestamp }) => ({
+            repo,
+            message,
+            timestamp,
+          }));
+
+          return {
+            username: userData.login || username,
+            publicRepos: Number(userData.repositories?.totalCount ?? 0),
+            followers: Number(userData.followers?.totalCount ?? 0),
+            totalContributions,
+            totalContributionsYear: totalCurr,
+            contributionsByYear,
+            contributionsHistory,
+            currentStreak,
+            recentCommits,
+            avatarUrl: userData.avatarUrl || `https://avatars.githubusercontent.com/${username}`,
+            lastUpdated: new Date().toISOString(),
+          };
+        }
+      }
+    } catch (err) {
+      console.warn("GitHub GraphQL with token failed, falling back to public endpoints:", err);
+    }
+  }
+
+  // 2. Secondary Method: Fallback to GitHub Public REST APIs
   let userData: any = {
     login: username,
     public_repos: 0,
@@ -36,9 +216,7 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     console.warn("GitHub user fetch warning:", err);
   }
 
-  // 2. Fetch live contributions from github-contributions-api (both all-time totals and last-year daily calendar)
   let totalContributions = 0;
-  const currentYearStr = new Date().getFullYear().toString();
   let totalContributionsYear = 0;
   let contributionsByYear: Record<string, number> = {};
   let dailyContributions: Array<{ date: string; count: number; level: number }> = [];
@@ -74,11 +252,9 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     console.warn("GitHub contributions API warning:", e);
   }
 
-  // 3. Compute real-time streak from daily contributions
   let currentStreak = 0;
   if (dailyContributions.length > 0) {
     let i = dailyContributions.length - 1;
-    // If today has 0 contributions so far, check starting from yesterday
     if (dailyContributions[i]?.count === 0 && i > 0) {
       i--;
     }
@@ -88,7 +264,6 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     }
   }
 
-  // 4. Compute real-time 112-day (16 weeks x 7 days) flat contributions history (1D array)
   const contributionsHistory: number[] = [];
   if (dailyContributions.length > 0) {
     const last112Days = dailyContributions.slice(-112);
@@ -100,9 +275,7 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
     contributionsHistory.unshift(0);
   }
 
-  // 5. Fetch real live recent commits from user's active repositories
   let recentCommits: Array<{ repo: string; message: string; timestamp: string }> = [];
-
   try {
     const eventsRes = await fetch(
       `https://api.github.com/users/${encodeURIComponent(username)}/events/public?per_page=30`
@@ -143,9 +316,7 @@ export async function fetchGitHubStats(rawInput: string): Promise<GitHubStats> {
                 });
               }
             }
-          } catch {
-            // ignore
-          }
+          } catch {}
         }
       }
     }

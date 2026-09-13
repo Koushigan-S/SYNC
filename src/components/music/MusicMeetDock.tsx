@@ -105,7 +105,12 @@ export function MusicMeetDock() {
       st.genre.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const effectiveDuration = duration > 0 ? duration : currentTrack.duration || 180;
+  const effectiveDuration =
+    !currentTrack.audioUrl || currentTrack.id === "standby-track"
+      ? 0
+      : duration > 0
+      ? duration
+      : currentTrack.duration || 0;
   const progressPercent =
     effectiveDuration > 0
       ? Math.min(100, Math.max(0, (currentTime / effectiveDuration) * 100))
@@ -189,10 +194,14 @@ export function MusicMeetDock() {
 
                 <div className="flex items-center gap-2 text-[11px] text-zinc-400 truncate mt-0.5">
                   <span className="truncate">{currentTrack.artist}</span>
-                  <span className="text-zinc-600 font-mono hidden sm:inline">•</span>
-                  <span className="font-mono text-[10px] text-zinc-400 hidden sm:inline">
-                    {formatAudioTime(currentTime)} / {formatAudioTime(effectiveDuration)}
-                  </span>
+                  {effectiveDuration > 0 && (
+                    <>
+                      <span className="text-zinc-600 font-mono hidden sm:inline">•</span>
+                      <span className="font-mono text-[10px] text-zinc-400 hidden sm:inline">
+                        {formatAudioTime(currentTime)} / {formatAudioTime(effectiveDuration)}
+                      </span>
+                    </>
+                  )}
                   {tunedInFriend ? (
                     <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-medium">
                       <Headphones className="w-2.5 h-2.5 animate-pulse text-emerald-400" />
@@ -617,17 +626,19 @@ export function MusicMeetDock() {
                         </span>
                       </button>
 
-                      <button
-                        type="button"
-                        onClick={() => setDockTab("stations")}
-                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
-                          dockTab === "stations"
-                            ? "bg-purple-600 text-white font-semibold"
-                            : "text-zinc-400 hover:text-white"
-                        }`}
-                      >
-                        Focus Stations
-                      </button>
+                      {stations.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setDockTab("stations")}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                            dockTab === "stations"
+                              ? "bg-purple-600 text-white font-semibold"
+                              : "text-zinc-400 hover:text-white"
+                          }`}
+                        >
+                          Focus Stations
+                        </button>
+                      )}
 
                       <button
                         type="button"

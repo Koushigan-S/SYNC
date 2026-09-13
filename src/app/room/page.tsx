@@ -475,7 +475,7 @@ export default function FocusRoomPage() {
                     Squad Audio Jukebox & Shared Library
                   </h3>
                   <p className="text-[11px] text-zinc-400">
-                    Live synchronized audio stream. Play squad songs or switch focus stations.
+                    Live synchronized audio stream. Add, share, and play squad audio tracks together.
                   </p>
                 </div>
               </div>
@@ -623,21 +623,39 @@ export default function FocusRoomPage() {
             </div>
 
             {/* Shared Squad Songs Section */}
-            {squadSongs.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
-                    <Music2 className="w-3 h-3" />
-                    Squad Added Songs ({squadSongs.length})
-                  </span>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-400 flex items-center gap-1.5">
+                  <Music2 className="w-3 h-3" />
+                  Squad Added Songs ({squadSongs.length})
+                </span>
+                <button
+                  onClick={() => setIsAddSongModalOpen(true)}
+                  className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>Add Song</span>
+                </button>
+              </div>
+
+              {squadSongs.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-black/40 border border-dashed border-white/10 text-center flex flex-col items-center justify-center">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center mb-3 text-purple-400">
+                    <Music2 className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-white mb-1">Squad Music Library is Empty</h3>
+                  <p className="text-xs text-zinc-400 max-w-sm mb-4">
+                    Add your own MP3 files or audio stream links. All squad members will immediately be able to listen and tune in!
+                  </p>
                   <button
                     onClick={() => setIsAddSongModalOpen(true)}
-                    className="text-[11px] text-zinc-400 hover:text-white flex items-center gap-1"
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-purple-900/30 transition-all cursor-pointer"
                   >
-                    <Plus className="w-3 h-3" />
-                    Add Another
+                    <Plus className="w-4 h-4" />
+                    <span>Add First Song</span>
                   </button>
                 </div>
+              ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {squadSongs.map((track) => {
                     const isActive = currentTrack.id === track.id;
@@ -688,38 +706,40 @@ export default function FocusRoomPage() {
                     );
                   })}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Focus Stations Carousel / Grid */}
-            <div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-2">
-                Curated High-Yield Focus Stations
-              </span>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {stations.map((station) => {
-                  const isActive = currentTrack.id === station.track.id;
-                  return (
-                    <button
-                      key={station.id}
-                      onClick={() => changeTrack(station.track)}
-                      className={`p-2.5 rounded-xl text-left transition-all border cursor-pointer ${
-                        isActive
-                          ? "bg-purple-500/15 border-purple-500/30 text-white shadow-sm"
-                          : "bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
-                      }`}
-                    >
-                      <div className="text-xs font-semibold text-white truncate">
-                        {station.title.split(" ")[0]}
-                      </div>
-                      <div className="text-[10px] text-zinc-500 truncate mt-0.5">
-                        {station.genre}
-                      </div>
-                    </button>
-                  );
-                })}
+            {stations.length > 0 && (
+              <div>
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 block mb-2">
+                  Curated High-Yield Focus Stations
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                  {stations.map((station) => {
+                    const isActive = currentTrack.id === station.track.id;
+                    return (
+                      <button
+                        key={station.id}
+                        onClick={() => changeTrack(station.track)}
+                        className={`p-2.5 rounded-xl text-left transition-all border cursor-pointer ${
+                          isActive
+                            ? "bg-purple-500/15 border-purple-500/30 text-white shadow-sm"
+                            : "bg-white/5 border-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
+                        }`}
+                      >
+                        <div className="text-xs font-semibold text-white truncate">
+                          {station.title.split(" ")[0]}
+                        </div>
+                        <div className="text-[10px] text-zinc-500 truncate mt-0.5">
+                          {station.genre}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Direct Audio URL Loader */}
             <form onSubmit={handleCustomTrackSubmit} className="flex gap-2">

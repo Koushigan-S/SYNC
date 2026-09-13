@@ -15,7 +15,7 @@ import {
   FocusRoom,
   FocusStation,
 } from "@/types";
-import { CURATED_FOCUS_STATIONS, DEFAULT_MEET_URL } from "@/lib/demo-data";
+import { CURATED_FOCUS_STATIONS, DEFAULT_MEET_URL, STANDBY_TRACK } from "@/lib/demo-data";
 import { XP_REWARDS } from "@/lib/constants";
 import { useSync } from "@/context/SyncContext";
 import { db, handleFirestoreQuotaExceeded } from "@/lib/firebase/config";
@@ -83,7 +83,7 @@ const DEFAULT_FOCUS_ROOM: FocusRoom = {
   meetUrl: DEFAULT_MEET_URL,
   activeMemberIds: [],
   isGroupListening: false,
-  hostTrack: CURATED_FOCUS_STATIONS[0].track,
+  hostTrack: null,
   hostUserId: null,
   pomodoro: {
     isActive: false,
@@ -97,9 +97,7 @@ const DEFAULT_FOCUS_ROOM: FocusRoom = {
 export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const { currentUser, allUsers, currentGroup, addToast, awardXP } = useSync();
 
-  const [currentTrack, setCurrentTrack] = useState<SongTrack>(
-    CURATED_FOCUS_STATIONS[0].track
-  );
+  const [currentTrack, setCurrentTrack] = useState<SongTrack>(STANDBY_TRACK);
   // Default to PAUSED on initial web load as per user requirement
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [volume, setVolumeState] = useState<number>(0.8);
@@ -140,11 +138,12 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
     listeningWithRef.current = listeningWith;
   }, [listeningWith]);
 
-  // Combined track collection (squad custom songs + curated starter stations)
-  const allAvailableTracks: SongTrack[] = [
-    ...squadSongs,
-    ...stations.map((s) => s.track),
-  ];
+  // Combined track collection (squad custom songs are primary!)
+  const allAvailableTracks: SongTrack[] = squadSongs.length > 0
+    ? squadSongs
+    : currentTrack.id !== STANDBY_TRACK.id && currentTrack.audioUrl
+    ? [currentTrack]
+    : [];
 
   // Initialize native HTML5 Audio element with event listeners
   useEffect(() => {
@@ -208,6 +207,14 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
           loaded.push({ id: d.id, ...d.data() } as SongTrack);
         });
         setSquadSongs(loaded);
+        if (
+          loaded.length > 0 &&
+          (!currentTrackRef.current ||
+            currentTrackRef.current.id === STANDBY_TRACK.id ||
+            !currentTrackRef.current.audioUrl)
+        ) {
+          setCurrentTrack(loaded[0]);
+        }
       },
       (err: any) => {
         if (err?.code === "resource-exhausted" || err?.message?.includes("Quota")) {
@@ -537,7 +544,16 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       audioRef.current.pause();
       setIsPlaying(false);
     } else {
-      const url = currentTrack?.audioUrl || currentTrack?.streamUrl || CURATED_FOCUS_STATIONS[0].track.audioUrl;
+      let targetTrack = currentTrack;
+      if (
+        (!targetTrack || !targetTrack.audioUrl || targetTrack.id === STANDBY_TRACK.id) &&
+        squadSongs.length > 0
+      ) {
+        targetTrack = squadSongs[0];
+        setCurrentTrack(targetTrack);
+      }
+
+      const url = targetTrack?.audioUrl || targetTrack?.streamUrl;
       if (url) {
         if (audioRef.current.src !== url) {
           audioRef.current.src = url;
@@ -550,10 +566,14 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
             setIsPlaying(false);
           });
       } else {
-        setIsPlaying(true);
+        addToast({
+          title: "No song selected",
+          description: "Click '+ Add Song' to add your tracks to the squad library.",
+          type: "default",
+        });
       }
     }
-  }, [isPlaying, currentTrack]);
+  }, [isPlaying, currentTrack, squadSongs, addToast]);
 
   const changeTrack = useCallback((track: SongTrack) => {
     setCurrentTrack(track);
@@ -847,9 +867,10 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
       }
       const newSong = await addSongToLibrary(currentGroup.id, songData);
       setSquadSongs((prev) => [newSong, ...prev]);
+      changeTrack(newSong);
       return newSong;
     },
-    [currentGroup?.id]
+    [currentGroup?.id, changeTrack]
   );
 
   const removeSong = useCallback(

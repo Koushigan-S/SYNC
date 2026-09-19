@@ -150,10 +150,7 @@ export function MusicMeetDock() {
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={
-                    currentTrack.albumArt ||
-                    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=200"
-                  }
+                  src={currentTrack.albumArt || "/icon.png"}
                   alt={currentTrack.title}
                   className="w-11 h-11 sm:w-12 sm:h-12 rounded-xl object-cover border border-white/15 shadow-md transition-transform group-hover:scale-105"
                 />
@@ -305,7 +302,7 @@ export function MusicMeetDock() {
                             src={
                               user?.photoURL ||
                               (user as any)?.avatar ||
-                              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"
+                              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.displayName || "Member")}`
                             }
                             alt={user?.displayName || "Member"}
                             className="w-4 h-4 rounded-full ring-1 ring-[#0d0d0f] object-cover"
@@ -413,7 +410,7 @@ export function MusicMeetDock() {
                                     src={
                                       user?.photoURL ||
                                       (user as any)?.avatar ||
-                                      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100"
+                                      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user?.displayName || "Member")}`
                                     }
                                     alt={user?.displayName || "Member"}
                                     className="w-8 h-8 rounded-full object-cover ring-1 ring-white/15"
@@ -530,10 +527,7 @@ export function MusicMeetDock() {
                     <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 border border-white/15 shadow-md">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={
-                          currentTrack.albumArt ||
-                          "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=300"
-                        }
+                        src={currentTrack.albumArt || "/icon.png"}
                         alt={currentTrack.title}
                         className={`w-full h-full object-cover transition-transform duration-500 ${
                           isPlaying ? "scale-105" : "grayscale-[30%]"
@@ -666,10 +660,7 @@ export function MusicMeetDock() {
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                  src={
-                                    track.albumArt ||
-                                    "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"
-                                  }
+                                  src={track.albumArt || "/icon.png"}
                                   alt={track.title}
                                   className="w-8 h-8 rounded-lg object-cover shrink-0"
                                 />

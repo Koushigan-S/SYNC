@@ -519,7 +519,12 @@ export default function DashboardPage() {
                     </span>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                      src={
+                        member.userSnapshot?.photoURL ||
+                        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                          member.userSnapshot?.displayName || "Member"
+                        )}`
+                      }
                       alt={member.userSnapshot?.displayName || "Member"}
                       className="w-7 h-7 rounded-full object-cover border border-white/10"
                     />
@@ -582,40 +587,46 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="divide-y divide-white/5 pt-1">
-          {filteredActivities.slice(0, 5).map((activity) => (
-            <div
-              key={activity.id}
-              className="py-3 flex items-center justify-between gap-4 text-xs"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={activity.userPhotoURL}
-                  alt={activity.userName}
-                  className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0"
-                />
-                <div className="truncate">
-                  <span className="font-medium text-white">
-                    {activity.userName}
-                  </span>{" "}
-                  <span className="text-zinc-400">{activity.description}</span>
+        {filteredActivities.length === 0 ? (
+          <div className="py-8 text-center text-xs text-zinc-500">
+            No squad activities yet. Complete a task, solve a problem, or push commits to kick off real-time updates!
+          </div>
+        ) : (
+          <div className="divide-y divide-white/5 pt-1">
+            {filteredActivities.slice(0, 5).map((activity) => (
+              <div
+                key={activity.id}
+                className="py-3 flex items-center justify-between gap-4 text-xs"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={activity.userPhotoURL}
+                    alt={activity.userName}
+                    className="w-7 h-7 rounded-full object-cover border border-white/10 shrink-0"
+                  />
+                  <div className="truncate">
+                    <span className="font-medium text-white">
+                      {activity.userName}
+                    </span>{" "}
+                    <span className="text-zinc-400">{activity.description}</span>
+                  </div>
+                </div>
+
+                <div className="shrink-0 flex items-center gap-2">
+                  {activity.xpAwarded > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-medium">
+                      +{activity.xpAwarded} XP
+                    </span>
+                  )}
+                  <span className="text-[10px] text-zinc-500">
+                    {activity.timestamp}
+                  </span>
                 </div>
               </div>
-
-              <div className="shrink-0 flex items-center gap-2">
-                {activity.xpAwarded > 0 && (
-                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[10px] font-medium">
-                    +{activity.xpAwarded} XP
-                  </span>
-                )}
-                <span className="text-[10px] text-zinc-500">
-                  {activity.timestamp}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Task Details Modal */}

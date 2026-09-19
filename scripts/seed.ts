@@ -19,6 +19,8 @@ const DEMO_GROUP_ID = "group-founders-squad";
 async function seed() {
   console.log("🌱 Starting SYNC Firestore database seeding...");
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   // 1. Users
   const users = [
     {
@@ -26,14 +28,14 @@ async function seed() {
       displayName: "Nova Vance",
       username: "novavance",
       email: "nova@sync.dev",
-      photoURL: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      photoURL: "https://api.dicebear.com/7.x/initials/svg?seed=Nova+Vance&backgroundColor=2563eb",
       timezone: "America/New_York",
       bio: "Building distributed systems & prepping for SWE interviews.",
       githubUsername: "novavance",
       leetcodeUsername: "novacodes",
       totalXP: 3920,
       level: 14,
-      streak: { current: 18, longest: 24, lastActiveDate: "2026-09-11" },
+      streak: { current: 18, longest: 24, lastActiveDate: todayStr },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     },
     {
@@ -41,14 +43,14 @@ async function seed() {
       displayName: "Rahul Sharma",
       username: "rahulsharma",
       email: "rahul@sync.dev",
-      photoURL: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80",
+      photoURL: "https://api.dicebear.com/7.x/initials/svg?seed=Rahul+Sharma&backgroundColor=7c3aed",
       timezone: "America/Chicago",
       bio: "Systems hacker. Rust & Go enthusiast.",
       githubUsername: "rahulsh",
       leetcodeUsername: "rahul_codes",
       totalXP: 3480,
       level: 13,
-      streak: { current: 14, longest: 19, lastActiveDate: "2026-09-11" },
+      streak: { current: 14, longest: 19, lastActiveDate: todayStr },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     },
     {
@@ -56,14 +58,14 @@ async function seed() {
       displayName: "Arun Patel",
       username: "arunpatel",
       email: "arun@sync.dev",
-      photoURL: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80",
+      photoURL: "https://api.dicebear.com/7.x/initials/svg?seed=Arun+Patel&backgroundColor=059669",
       timezone: "America/Los_Angeles",
       bio: "Full stack TypeScript & UI perfectionist.",
       githubUsername: "arunp",
       leetcodeUsername: "arun_algo",
       totalXP: 2750,
       level: 11,
-      streak: { current: 9, longest: 15, lastActiveDate: "2026-09-11" },
+      streak: { current: 9, longest: 15, lastActiveDate: todayStr },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     },
     {
@@ -71,14 +73,14 @@ async function seed() {
       displayName: "Karthik Raja",
       username: "karthikraja",
       email: "karthik@sync.dev",
-      photoURL: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80",
+      photoURL: "https://api.dicebear.com/7.x/initials/svg?seed=Karthik+Raja&backgroundColor=ea580c",
       timezone: "America/Toronto",
       bio: "ML algorithms & backend engineering.",
       githubUsername: "karthikr",
       leetcodeUsername: "kraja_dev",
       totalXP: 2340,
       level: 10,
-      streak: { current: 6, longest: 12, lastActiveDate: "2026-09-11" },
+      streak: { current: 6, longest: 12, lastActiveDate: todayStr },
       createdAt: admin.firestore.FieldValue.serverTimestamp(),
     },
   ];
@@ -94,7 +96,7 @@ async function seed() {
     id: DEMO_GROUP_ID,
     name: "Founders Squad",
     description: "Private engineering & interview prep sprint crew.",
-    imageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80",
+    imageUrl: "/icon.png",
     ownerId: "user-nova",
     inviteCode: "SYNC-FOUNDERS-2026",
     memberCount: 4,
@@ -130,9 +132,9 @@ async function seed() {
     creatorName: "Rahul Sharma",
     title: "ETM Test Preparation & High-Yield Review",
     notes: "Review Chapters 3-7: Finite Automata and Turing Decidability proofs.",
-    scheduledDate: "2026-09-11",
+    scheduledDate: todayStr,
     scheduledTime: "14:00",
-    deadline: "2026-09-11T20:00:00Z",
+    deadline: `${todayStr}T20:00:00Z`,
     repeat: "never",
     visibility: "group",
     assignedParticipantIds: ["user-nova", "user-rahul", "user-arun", "user-karthik"],

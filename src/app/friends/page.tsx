@@ -38,7 +38,7 @@ export default function FriendsPage() {
     username: currentUser?.username || "user",
     photoURL:
       currentUser?.photoURL ||
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(currentUser?.displayName || "Member")}`,
     level: currentUser?.level || 1,
     totalXP: currentUser?.totalXP || 0,
     weeklyXP: 0,
@@ -500,6 +500,13 @@ export default function FriendsPage() {
             </select>
           </div>
         </div>
+
+        {members.length <= 1 && (
+          <div className="p-4 rounded-xl bg-white/[0.04] border border-white/10 flex items-center gap-3 text-xs text-zinc-300">
+            <Users className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Invite friends to your squad to compare live XP, streaks, and GitHub/LeetCode contributions side-by-side!</span>
+          </div>
+        )}
 
         {/* Comparison Header Cards */}
         <div className="grid grid-cols-2 gap-4">

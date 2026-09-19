@@ -13,28 +13,28 @@ import {
   Calendar,
   CheckCircle2,
 } from "lucide-react";
-import { DEMO_INVITE_CODE } from "@/lib/constants";
-
 interface OnboardingModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
-  const { createGroup, joinGroupWithCode, createTask, addToast } = useSync();
+  const { createGroup, joinGroupWithCode, createTask, addToast, currentGroup } = useSync();
 
   const [step, setStep] = useState(1);
   const [groupChoice, setGroupChoice] = useState<"create" | "join">("create");
   const [groupName, setGroupName] = useState("Alpha Squad");
   const [groupImage, setGroupImage] = useState("");
-  const [inviteCodeInput, setInviteCodeInput] = useState(DEMO_INVITE_CODE);
+  const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [copied, setCopied] = useState(false);
   const [firstTaskTitle, setFirstTaskTitle] = useState("Solve 2 LeetCode Mediums & Push to GitHub");
 
   if (!isOpen) return null;
 
+  const displayInviteCode = currentGroup.inviteCode || "SYNC-PROGRESS-2026";
+
   const handleCopy = () => {
-    navigator.clipboard.writeText(DEMO_INVITE_CODE);
+    navigator.clipboard.writeText(displayInviteCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -182,7 +182,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
                   type="text"
                   value={inviteCodeInput}
                   onChange={(e) => setInviteCodeInput(e.target.value)}
-                  placeholder="e.g. SYNC-FOUNDERS-2026"
+                  placeholder="e.g. SYNC-ALPHA-4921"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-[#1c1c1e] border border-white/10 text-white text-xs uppercase font-mono tracking-wider focus:outline-none focus:border-white/30"
                 />
               </div>
@@ -223,7 +223,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
                 type="text"
                 value={groupImage}
                 onChange={(e) => setGroupImage(e.target.value)}
-                placeholder="https://images.unsplash.com/..."
+                placeholder="https://example.com/squad-banner.png"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-[#1c1c1e] border border-white/10 text-white text-xs focus:outline-none focus:border-white/30"
               />
             </div>
@@ -248,7 +248,7 @@ export function OnboardingModal({ isOpen, onClose }: OnboardingModalProps) {
                   Invite Code
                 </span>
                 <span className="font-mono text-base font-bold text-white tracking-wider">
-                  {DEMO_INVITE_CODE}
+                  {displayInviteCode}
                 </span>
               </div>
               <button

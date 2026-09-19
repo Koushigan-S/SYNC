@@ -132,7 +132,12 @@ export default function LeaderboardPage() {
               <div className="mt-4 flex items-center gap-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                  src={
+                    member.userSnapshot?.photoURL ||
+                    `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                      member.userSnapshot?.displayName || "Member"
+                    )}`
+                  }
                   alt={member.userSnapshot?.displayName || "Member"}
                   className="w-12 h-12 rounded-full object-cover border-2 border-white/15"
                 />
@@ -231,7 +236,12 @@ export default function LeaderboardPage() {
 
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                      src={
+                        member.userSnapshot?.photoURL ||
+                        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                          member.userSnapshot?.displayName || "Member"
+                        )}`
+                      }
                       alt={member.userSnapshot?.displayName || "Member"}
                       className="w-9 h-9 rounded-full object-cover border border-white/10"
                     />

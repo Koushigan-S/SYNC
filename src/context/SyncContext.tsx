@@ -119,29 +119,27 @@ export interface SyncContextType {
 
 const SyncContext = createContext<SyncContextType | null>(null);
 
-const DEFAULT_GROUP_ID = "group-founders-squad";
+const INITIAL_EMPTY_GROUP: Group = {
+  id: "",
+  name: "My Squad",
+  description: "Private engineering & productivity sprint squad.",
+  imageUrl: "",
+  ownerId: "",
+  inviteCode: "",
+  memberCount: 1,
+  createdAt: new Date().toISOString(),
+};
 
 const FALLBACK_USER: UserProfile = {
   id: "guest",
   displayName: "Guest User",
   username: "guest",
   email: "guest@sync.dev",
-  photoURL: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+  photoURL: "",
   timezone: "UTC",
   totalXP: 0,
   level: 1,
   streak: { current: 0, longest: 0, lastActiveDate: new Date().toISOString().split("T")[0] },
-  createdAt: new Date().toISOString(),
-};
-
-const FALLBACK_GROUP: Group = {
-  id: DEFAULT_GROUP_ID,
-  name: "Founders Squad",
-  description: "Private engineering & progress sprint crew.",
-  imageUrl: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80",
-  ownerId: "system",
-  inviteCode: "SYNC-FOUNDERS-2026",
-  memberCount: 1,
   createdAt: new Date().toISOString(),
 };
 
@@ -150,8 +148,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [currentUserProfile, setCurrentUserProfile] = useState<UserProfile | null>(null);
 
-  const [currentGroupId, setCurrentGroupId] = useState<string>(DEFAULT_GROUP_ID);
-  const [currentGroup, setCurrentGroup] = useState<Group>(FALLBACK_GROUP);
+  const [currentGroupId, setCurrentGroupId] = useState<string>("");
+  const [currentGroup, setCurrentGroup] = useState<Group>(INITIAL_EMPTY_GROUP);
 
   const [allUsers, setAllUsers] = useState<Record<string, UserProfile>>({});
   const [members, setMembers] = useState<GroupMember[]>([]);
@@ -188,6 +186,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       const userSnap = await getDoc(userDocRef);
 
       if (!userSnap.exists()) {
+        const defaultAvatar = user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || "Member")}`;
         const newProfile: UserProfile = {
           id: user.uid,
           displayName: user.displayName || "Squad Member",
@@ -198,11 +197,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             "_" +
             Math.floor(100 + Math.random() * 900),
           email: user.email || "",
-          photoURL:
-            user.photoURL ||
-            `https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80`,
+          photoURL: defaultAvatar,
           timezone:
-            Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York",
+            Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
           totalXP: 0,
           level: 1,
           streak: {
@@ -213,7 +210,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           createdAt: new Date().toISOString(),
         };
 
-        await setDoc(userDocRef, newProfile);
+        await setDoc(userDocRef, cleanFirestoreData(newProfile));
       }
 
       addToast({
@@ -233,6 +230,11 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       await signOut(auth);
       setFirebaseUser(null);
       setCurrentUserProfile(null);
+      setCurrentGroupId("");
+      setCurrentGroup(INITIAL_EMPTY_GROUP);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("sync_active_group_id");
+      }
       addToast({
         title: "Signed out",
         description: "You have been logged out of SYNC.",
@@ -243,12 +245,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
   }, [addToast]);
 
-  // Auth State Listener
+  // Auth State Listener & Dynamic Squad Resolver
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (!user) {
         setCurrentUserProfile(null);
+        setCurrentGroupId("");
+        setCurrentGroup(INITIAL_EMPTY_GROUP);
         setAuthLoading(false);
         return;
       }
@@ -256,20 +260,20 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       try {
         const userDocRef = doc(db, "users", user.uid);
         const userSnap = await getDoc(userDocRef);
+        let profile: UserProfile;
 
         if (!userSnap.exists()) {
-          const profile: UserProfile = {
+          const defaultAvatar = user.photoURL || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.displayName || "Member")}`;
+          profile = {
             id: user.uid,
             displayName: user.displayName || "Squad Member",
             username: (user.email?.split("@")[0] || "user")
               .toLowerCase()
               .replace(/[^a-z0-9_]/g, ""),
             email: user.email || "",
-            photoURL:
-              user.photoURL ||
-              "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+            photoURL: defaultAvatar,
             timezone:
-              Intl.DateTimeFormat().resolvedOptions().timeZone || "America/New_York",
+              Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
             totalXP: 0,
             level: 1,
             streak: {
@@ -282,49 +286,84 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
           await setDoc(userDocRef, cleanFirestoreData(profile));
           setCurrentUserProfile(profile);
         } else {
-          setCurrentUserProfile(userSnap.data() as UserProfile);
+          profile = userSnap.data() as UserProfile;
+          setCurrentUserProfile(profile);
         }
 
-        // Ensure default squad exists
-        const groupRef = doc(db, "groups", DEFAULT_GROUP_ID);
-        const groupSnap = await getDoc(groupRef);
-        if (!groupSnap.exists()) {
-          await setDoc(
-            groupRef,
-            cleanFirestoreData({
-              id: DEFAULT_GROUP_ID,
-              name: "Founders Squad",
-              description: "Private engineering & progress sprint crew.",
-              imageUrl:
-                "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80",
-              ownerId: user.uid,
-              inviteCode: "SYNC-FOUNDERS-2026",
-              memberCount: 1,
-              createdAt: new Date().toISOString(),
-            })
+        // Dynamically resolve the user's active squad
+        let targetGId: string | null =
+          (profile as any).activeGroupId ||
+          (typeof window !== "undefined" ? localStorage.getItem("sync_active_group_id") : null);
+
+        let resolvedGroup: Group | null = null;
+
+        if (targetGId) {
+          const gSnap = await getDoc(doc(db, "groups", targetGId));
+          if (gSnap.exists()) {
+            resolvedGroup = { id: gSnap.id, ...gSnap.data() } as Group;
+          } else {
+            targetGId = null;
+          }
+        }
+
+        // If targetGId is not set or not found, check if user already owns any group
+        if (!resolvedGroup) {
+          const ownedQuery = query(
+            collection(db, "groups"),
+            where("ownerId", "==", user.uid),
+            limit(1)
           );
+          const ownedSnap = await getDocs(ownedQuery);
+          if (!ownedSnap.empty) {
+            const firstGroup = ownedSnap.docs[0];
+            resolvedGroup = { id: firstGroup.id, ...firstGroup.data() } as Group;
+            targetGId = firstGroup.id;
+          }
         }
 
-        // Ensure user is added to group members
-        const memberRef = doc(db, "groups", DEFAULT_GROUP_ID, "members", user.uid);
+        // If user still has no group, dynamically create their own personalized squad
+        if (!resolvedGroup || !targetGId) {
+          const sanitizedName = (user.displayName || "My").trim();
+          const cleanPrefix =
+            sanitizedName.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "SQUAD";
+          const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+          const newGroupId = "group-" + Math.random().toString(36).substring(2, 9);
+          const inviteCode = `SYNC-${cleanPrefix}-${randomSuffix}`;
+
+          const newGroup: Group = {
+            id: newGroupId,
+            name: `${sanitizedName}'s Squad`,
+            description: "Private engineering, coding & productivity sprint squad.",
+            imageUrl: user.photoURL || "",
+            ownerId: user.uid,
+            inviteCode,
+            memberCount: 1,
+            createdAt: new Date().toISOString(),
+          };
+
+          await setDoc(doc(db, "groups", newGroupId), cleanFirestoreData(newGroup));
+          targetGId = newGroupId;
+          resolvedGroup = newGroup;
+        }
+
+        // Ensure user is in the group members collection
+        const memberRef = doc(db, "groups", targetGId, "members", user.uid);
         const memberSnap = await getDoc(memberRef);
         if (!memberSnap.exists()) {
           await setDoc(
             memberRef,
             cleanFirestoreData({
               userId: user.uid,
-              groupId: DEFAULT_GROUP_ID,
-              role: "member",
+              groupId: targetGId,
+              role: resolvedGroup.ownerId === user.uid ? "owner" : "member",
               joinedAt: new Date().toISOString(),
               userSnapshot: {
                 displayName: user.displayName || "Member",
                 username: (user.email?.split("@")[0] || "user").toLowerCase(),
-                photoURL:
-                  user.photoURL ||
-                  "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-                totalXP: 0,
-                level: 1,
-                streak: 1,
+                photoURL: user.photoURL || profile.photoURL,
+                totalXP: profile.totalXP || 0,
+                level: profile.level || 1,
+                streak: profile.streak?.current || 1,
                 tasksCompleted: 0,
                 weeklyXP: 0,
                 monthlyXP: 0,
@@ -332,6 +371,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
             })
           );
         }
+
+        setCurrentGroupId(targetGId);
+        setCurrentGroup(resolvedGroup);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("sync_active_group_id", targetGId);
+        }
+        await updateDoc(userDocRef, { activeGroupId: targetGId }).catch(() => {});
       } catch (e: any) {
         if (e?.code === "resource-exhausted" || e?.message?.includes("Quota")) {
           handleFirestoreQuotaExceeded();
@@ -396,7 +442,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to active Group metadata
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || !currentGroupId) return;
     const groupRef = doc(db, "groups", currentGroupId);
     const unsub = onSnapshot(
       groupRef,
@@ -419,7 +465,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to Group Members
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || !currentGroupId) return;
     const membersColl = collection(db, "groups", currentGroupId, "members");
     const unsub = onSnapshot(
       membersColl,
@@ -444,7 +490,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to Tasks & Participants
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || !currentGroupId) return;
     const tasksColl = collection(db, "groups", currentGroupId, "tasks");
     const unsub = onSnapshot(
       tasksColl,
@@ -489,7 +535,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to Activities Feed
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || !currentGroupId) return;
     const actQuery = query(
       collection(db, "groups", currentGroupId, "activities"),
       orderBy("timestamp", "desc"),
@@ -530,7 +576,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Subscribe to Challenges
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser || !currentGroupId) return;
     const chalColl = collection(db, "groups", currentGroupId, "challenges");
     const unsub = onSnapshot(
       chalColl,
@@ -892,6 +938,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         setCurrentGroupId(targetGroupId);
         setCurrentGroup(matchedGroup);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("sync_active_group_id", targetGroupId);
+        }
+        await updateDoc(doc(db, "users", firebaseUser.uid), { activeGroupId: targetGroupId }).catch(() => {});
 
         addToast({
           title: `Joined ${matchedGroup.name}!`,
@@ -914,23 +964,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       if (!firebaseUser) return;
       try {
         const newGroupId = "group-" + Math.random().toString(36).substring(2, 9);
-        const inviteCode =
-          "SYNC-" + name.toUpperCase().replace(/\s+/g, "-").slice(0, 8) + "-2026";
+        const cleanPrefix = name.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6) || "SQUAD";
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        const inviteCode = `SYNC-${cleanPrefix}-${randomSuffix}`;
 
         const newGroupData: Group = {
           id: newGroupId,
           name,
           description: description || "",
-          imageUrl:
-            imageUrl ||
-            "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=400&auto=format&fit=crop&q=80",
+          imageUrl: imageUrl || currentUser.photoURL || "",
           ownerId: firebaseUser.uid,
           inviteCode,
           memberCount: 1,
           createdAt: new Date().toISOString(),
         };
 
-        await setDoc(doc(db, "groups", newGroupId), newGroupData);
+        await setDoc(doc(db, "groups", newGroupId), cleanFirestoreData(newGroupData));
 
         await setDoc(doc(db, "groups", newGroupId, "members", firebaseUser.uid), {
           userId: firebaseUser.uid,
@@ -952,6 +1001,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
         setCurrentGroupId(newGroupId);
         setCurrentGroup(newGroupData);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("sync_active_group_id", newGroupId);
+        }
+        await updateDoc(doc(db, "users", firebaseUser.uid), { activeGroupId: newGroupId }).catch(() => {});
 
         addToast({
           title: "Squad Created!",

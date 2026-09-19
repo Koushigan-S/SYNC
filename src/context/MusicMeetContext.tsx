@@ -15,7 +15,20 @@ import {
   FocusRoom,
   FocusStation,
 } from "@/types";
-import { CURATED_FOCUS_STATIONS, DEFAULT_MEET_URL, STANDBY_TRACK } from "@/lib/demo-data";
+const DEFAULT_MEET_URL = process.env.NEXT_PUBLIC_DEFAULT_MEET_URL || "";
+
+const STANDBY_TRACK: SongTrack = {
+  id: "standby-track",
+  title: "No Song Playing",
+  artist: "Add songs to your squad library",
+  album: "Squad Library",
+  albumArt: "",
+  audioUrl: "",
+  duration: 0,
+  durationMs: 0,
+  genre: "Squad Audio",
+};
+
 import { XP_REWARDS } from "@/lib/constants";
 import { useSync } from "@/context/SyncContext";
 import { db, handleFirestoreQuotaExceeded } from "@/lib/firebase/config";
@@ -117,7 +130,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
   const [presences, setPresences] = useState<Record<string, UserMusicPresence>>({});
   const [listeningWith, setListeningWith] = useState<string | null>(null);
   const [focusRoom, setFocusRoom] = useState<FocusRoom>(DEFAULT_FOCUS_ROOM);
-  const [stations] = useState<FocusStation[]>(CURATED_FOCUS_STATIONS);
+  const [stations] = useState<FocusStation[]>([]);
   const [squadSongs, setSquadSongs] = useState<SongTrack[]>([]);
   const [isDockExpanded, setIsDockExpanded] = useState<boolean>(false);
   const [userMicEnabled, setUserMicEnabled] = useState<boolean>(false);
@@ -1062,8 +1075,7 @@ export function MusicMeetProvider({ children }: { children: React.ReactNode }) {
         title: "Custom Squad Stream",
         artist: "Direct Audio",
         album: "Squad Session",
-        albumArt:
-          "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80",
+        albumArt: "/icon.png",
         audioUrl: trimmed,
         streamUrl: trimmed,
         genre: "Custom Audio",

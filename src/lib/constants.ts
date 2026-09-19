@@ -59,7 +59,3 @@ export function getLevelProgress(totalXP: number): {
     percentage,
   };
 }
-
-export const DEMO_GROUP_ID = "group-founders-squad";
-export const DEMO_INVITE_CODE = "SYNC-FOUNDERS-2026";
-export const CURRENT_USER_ID = "user-nova";

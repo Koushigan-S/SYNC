@@ -178,7 +178,7 @@ export default function FocusRoomPage() {
                     Cancel
                   </button>
                 </form>
-              ) : (
+              ) : focusRoom.meetUrl ? (
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-300">
                   <Video className="w-3.5 h-3.5 text-emerald-400" />
                   <span className="font-mono text-zinc-200 truncate max-w-[200px] sm:max-w-xs">
@@ -196,13 +196,25 @@ export default function FocusRoomPage() {
                     )}
                   </button>
                   <button
-                    onClick={() => setIsEditingMeetUrl(true)}
+                    onClick={() => {
+                      setMeetUrlInput(focusRoom.meetUrl);
+                      setIsEditingMeetUrl(true);
+                    }}
                     className="p-1 hover:text-white transition-colors"
                     title="Change Meet URL"
                   >
                     <Edit2 className="w-3.5 h-3.5 text-zinc-500 hover:text-zinc-300" />
                   </button>
                 </div>
+              ) : (
+                <button
+                  onClick={() => setIsEditingMeetUrl(true)}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-dashed border-white/20 text-xs text-zinc-400 hover:text-white transition-colors"
+                >
+                  <Video className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Set squad Google Meet link</span>
+                  <Edit2 className="w-3 h-3 text-zinc-500 ml-1" />
+                </button>
               )}
             </div>
           </div>
@@ -226,16 +238,26 @@ export default function FocusRoomPage() {
               </button>
             )}
 
-            <a
-              href={focusRoom.meetUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all hover:scale-105 shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95"
-            >
-              <Video className="w-4 h-4 fill-current" />
-              <span>Launch Google Meet</span>
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
+            {focusRoom.meetUrl ? (
+              <a
+                href={focusRoom.meetUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black text-xs font-bold transition-all hover:scale-105 shadow-lg shadow-emerald-500/20 flex items-center gap-2 active:scale-95"
+              >
+                <Video className="w-4 h-4 fill-current" />
+                <span>Launch Google Meet</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            ) : (
+              <button
+                onClick={() => setIsEditingMeetUrl(true)}
+                className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-xs font-bold transition-all flex items-center gap-2"
+              >
+                <Video className="w-4 h-4 text-emerald-400" />
+                <span>Set Meet Link</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -327,7 +349,12 @@ export default function FocusRoomPage() {
                       <div className="relative">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
-                          src={member.userSnapshot?.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80"}
+                          src={
+                            member.userSnapshot?.photoURL ||
+                            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                              member.userSnapshot?.displayName || "Member"
+                            )}`
+                          }
                           alt={member.userSnapshot?.displayName || "Member"}
                           className="w-10 h-10 rounded-full object-cover border border-white/15"
                         />
@@ -565,7 +592,7 @@ export default function FocusRoomPage() {
                   <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl overflow-hidden shrink-0 border border-white/15 shadow-2xl">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={currentTrack.albumArt || "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=400"}
+                      src={currentTrack.albumArt || "/icon.png"}
                       alt={currentTrack.title}
                       className={`w-full h-full object-cover transition-transform duration-700 ${
                         isPlaying ? "scale-105" : "grayscale-[30%]"
@@ -685,7 +712,7 @@ export default function FocusRoomPage() {
                         >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
-                            src={track.albumArt || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"}
+                            src={track.albumArt || "/icon.png"}
                             alt={track.title}
                             className="w-10 h-10 rounded-lg object-cover shrink-0"
                           />

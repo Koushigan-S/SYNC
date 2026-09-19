@@ -19,9 +19,7 @@ interface AddSongModalProps {
   onClose: () => void;
 }
 
-// Default clean album artwork for squad audio tracks
-const DEFAULT_ALBUM_ART =
-  "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=400&auto=format&fit=crop&q=80";
+const DEFAULT_ALBUM_ART = "/icon.png";
 
 export function AddSongModal({ isOpen, onClose }: AddSongModalProps) {
   const { currentUser, addToast } = useSync();

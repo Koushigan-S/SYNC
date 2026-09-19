@@ -1078,7 +1078,7 @@ export default function SettingsPage() {
                               >
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
-                                  src={song.albumArt || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100"}
+                                  src={song.albumArt || "/icon.png"}
                                   alt={song.title}
                                   className="w-10 h-10 rounded-lg object-cover shrink-0"
                                 />
